@@ -19,6 +19,22 @@ def test_create_account_xray_scenario_analyst_and_signout():
         browser = playwright.chromium.launch()
         page = browser.new_page(viewport={'width': 1440, 'height': 900})
         page.on('pageerror', lambda error: errors.append(str(error)))
+        # CI never depends on external providers: mocked OFFICIAL reference labels are
+        # visibly distinct from the fictional portfolio and source links are explicit.
+        page.route('**/api/v4/market/official', lambda route: route.fulfill(json={
+            'type':'official_market_context','not_portfolio_prices':True,
+            'fx':{'status':'unavailable','name':'ECB EUR/USD reference rate','publisher':'European Central Bank','unit':'USD per EUR',
+                  'source_url':'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.csv',
+                  'about_url':'https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html',
+                  'rights_url':'https://www.ecb.europa.eu/services/using-our-site/disclaimer/html/index.en.html',
+                  'note':'Source: European Central Bank.','notice':'Official source temporarily unavailable. No rates or prices have been fabricated.','history':[]},
+            'treasury':{'status':'unavailable','name':'Treasury nominal par yields','publisher':'U.S. Department of the Treasury','unit':'annualized yield percent',
+                  'source_url':'https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve',
+                  'about_url':'https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve',
+                  'note':'Source: U.S. Treasury.','notice':'Official source temporarily unavailable. No rates or prices have been fabricated.','history':[]},
+            'issuer_links':[{'symbol':'VOO','issuer':'Vanguard','url':'https://investor.vanguard.com/investment-products/etfs/profile/voo'}],
+            'issuer_notice':'Issuer pages are links for manual verification. PortfolioIQ does not scrape, copy, license, validate, or silently replace issuer ETF constituents.',
+            'methodology':'Official data research only'}))
         page.goto(BASE_URL, wait_until='domcontentloaded')
         expect(page.get_by_role('heading', name='Create your workspace')).to_be_visible(timeout=10000)
         page.get_by_label('Email address').fill(f'e2e-{uuid4().hex}@portfolioiq.test')
@@ -33,6 +49,12 @@ def test_create_account_xray_scenario_analyst_and_signout():
 
         page.get_by_role('button', name='Market Intelligence').click()
         expect(page.get_by_role('heading', name='Market Intelligence', exact=True)).to_be_visible()
+        expect(page.get_by_role('heading', name='Official market reference data')).to_be_visible()
+        expect(page.get_by_role('heading', name='EUR/USD · ECB reference rate')).to_be_visible()
+        expect(page.get_by_role('heading', name='U.S. Treasury · yield curve')).to_be_visible()
+        expect(page.get_by_role('heading', name='Verify ETF holdings at the issuer')).to_be_visible()
+        expect(page.get_by_text('Official source temporarily unavailable. No rates or prices have been fabricated.').first).to_be_visible()
+        expect(page.get_by_role('link', name='VOO Vanguard')).to_have_attribute('href', 'https://investor.vanguard.com/investment-products/etfs/profile/voo')
         expect(page.get_by_role('heading', name='Historical benchmark research')).to_be_visible()
         expect(page.get_by_role('heading', name='ETF disclosure quality')).to_be_visible()
         expect(page.get_by_text('No real benchmark close series imported or fetched')).to_be_visible()
