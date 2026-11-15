@@ -95,6 +95,12 @@ def test_create_account_xray_scenario_analyst_and_signout():
 
         page.get_by_role('button', name='IQ Analyst').click()
         expect(page.get_by_role('heading', name='IQ Analyst', exact=True)).to_be_visible()
+        # Filing research is opt-in and disabled without local SEC operator setup.
+        ai_toggle=page.get_by_label('Opt in to external AI', exact=False)
+        ai_toggle.check()
+        expect(page.get_by_text('SEC filing research (optional)')).to_be_visible()
+        expect(page.get_by_text('SEC filing retrieval is disabled in this environment.', exact=False)).to_be_visible()
+        ai_toggle.uncheck()
         page.get_by_role('button', name=re.compile('Analyze portfolio')).click()
         expect(page.get_by_text('DETERMINISTIC EXPLANATION')).to_be_visible(timeout=15000)
         expect(page.get_by_text('Source contributions').first).to_be_visible()
