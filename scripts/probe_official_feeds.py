@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'production'))
 from server.official_feeds import (
- fx_source_url,parse_frankfurter_ecb_json,MAX_FX_BYTES,
+ VALUUTTA_SOURCE,parse_valuutta_ecb_csv,fx_source_url,parse_frankfurter_ecb_json,MAX_FX_BYTES,
  treasury_source_url,parse_treasury_csv,MAX_TREASURY_BYTES,
  TREASURY_MIRROR,parse_treasury_mirror_csv,MAX_MIRROR_BYTES,_download_fixed
 )
@@ -12,7 +12,8 @@ from server.official_feeds import (
 def run():
     okay=True
     configs=[
-       ('ECB-only FX via Frankfurter',[(fx_source_url(),parse_frankfurter_ecb_json,MAX_FX_BYTES)]),
+       ('ECB reference FX via authorized distributor',[(VALUUTTA_SOURCE,parse_valuutta_ecb_csv,MAX_FX_BYTES),
+                                                         (fx_source_url(),parse_frankfurter_ecb_json,MAX_FX_BYTES)]),
        ('U.S. Treasury nominal yields',[(treasury_source_url(),parse_treasury_csv,MAX_TREASURY_BYTES),
                                         (TREASURY_MIRROR,parse_treasury_mirror_csv,MAX_MIRROR_BYTES)]),
     ]
