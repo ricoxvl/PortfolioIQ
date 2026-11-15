@@ -33,4 +33,4 @@ The hosted fictional demo disables benchmark CSV imports, provider syncing, and 
 
 ### v0.9 official source access
 
-Only hardcoded ECB and U.S. Treasury HTTPS CSV endpoints are requested by server code; no browser-supplied URL or API key. Upstream responses are size-limited, parsed conservatively, and never substituted for real security prices. Results are scoped to authenticated app sessions, and failures show unavailable/stale statuses rather than guessed figures. Issuer links are provided for verification but no issuer holdings are scraped or copied.
+Only hardcoded ECB-filtered Frankfurter JSON, U.S. Treasury official CSV, and its declared public-domain mirror endpoints are requested by server code; no browser-supplied URL or API key. Upstream responses are size-limited, parsed conservatively, and never substituted for real security prices. Results are scoped to authenticated app sessions, and failures show unavailable/stale statuses rather than guessed figures. Issuer links are provided for verification but no issuer holdings are scraped or copied.
