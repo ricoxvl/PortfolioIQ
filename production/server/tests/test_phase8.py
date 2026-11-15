@@ -174,7 +174,7 @@ def test_phase8_is_exposed_only_to_portfolio_owner_in_authenticated_api(monkeypa
         ]:
             r = post(alice, f"/portfolios/{pid}/transactions", data=event)
             assert r.status_code == 201, r.text
-        csv = b"symbol,date,close\\nTEST,2026-10-01,100\\nTEST,2026-10-02,120\\n"
+        csv = b"symbol,date,close\nTEST,2026-10-01,100\nTEST,2026-10-02,120\n"
         r = post(alice, f"/portfolios/{pid}/prices/csv",
                  files={"file": ("synthetic.csv", csv)})
         assert r.status_code == 200, r.text
