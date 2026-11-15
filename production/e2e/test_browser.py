@@ -118,6 +118,17 @@ def test_create_account_xray_scenario_analyst_and_signout():
         with page.expect_download() as downloaded:
             page.get_by_role('button', name=re.compile('Download PDF report')).click()
         assert downloaded.value.suggested_filename.endswith('.pdf')
+        with page.expect_download() as holdings_export:
+            page.get_by_role('button', name=re.compile('Download holdings CSV')).click()
+        assert holdings_export.value.suggested_filename.endswith('.csv')
+        page.get_by_role('spinbutton', name='Alert threshold').fill('75')
+        page.get_by_role('button', name=re.compile('Save threshold')).click()
+        expect(page.get_by_role('button', name='Delete rule')).to_be_visible(timeout=15000)
+        page.get_by_role('button', name='Refresh rule statuses').click()
+        expect(page.get_by_role('button', name='Delete rule')).to_be_visible()
+        page.get_by_role('button', name='Delete rule').click()
+        expect(page.get_by_text('No alert thresholds saved for this portfolio.')).to_be_visible()
+
 
         page.get_by_role('button', name='IQ Analyst').click()
         expect(page.get_by_role('heading', name='IQ Analyst', exact=True)).to_be_visible()
