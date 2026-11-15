@@ -146,3 +146,42 @@ def test_unassigned_dividend_is_not_misattributed_to_a_holding():
     assert result["attribution"]["available"]
     assert result["attribution"]["return_pct"] == 1
     assert result["attribution"]["rows"][0]["symbol"] == "Unassigned dividends"
+
+
+def test_phase8_is_exposed_only_to_portfolio_owner_in_authenticated_api(monkeypatch):
+    from uuid import uuid4
+    from fastapi.testclient import TestClient
+    from server.app import app
+    monkeypatch.setenv("BETA_DEMO_ONLY", "false")
+    with TestClient(app) as alice, TestClient(app) as bob:
+        for client in (alice, bob):
+            r = client.post("/api/v4/auth/register", json={
+                "email": f"phase8-{uuid4().hex}@portfolioiq.test",
+                "password": "LongStrongPassword!123"})
+            assert r.status_code == 201, r.text
+
+        def post(client, path, *, data=None, files=None):
+            return client.post("/api/v4" + path, json=data, files=files,
+                               headers={"x-csrf-token": client.cookies.get("piq_csrf") or ""})
+
+        p = post(alice, "/portfolios", data={"name": "Attribution reference", "kind": "ledger"})
+        assert p.status_code == 201, p.text
+        pid = p.json()["id"]
+        for event in [
+            {"occurred_on": "2026-10-01", "kind": "DEPOSIT", "amount": 1000},
+            {"occurred_on": "2026-10-01", "kind": "BUY", "symbol": "TEST",
+             "quantity": 5, "unit_price": 100},
+        ]:
+            r = post(alice, f"/portfolios/{pid}/transactions", data=event)
+            assert r.status_code == 201, r.text
+        csv = b"symbol,date,close\\nTEST,2026-10-01,100\\nTEST,2026-10-02,120\\n"
+        r = post(alice, f"/portfolios/{pid}/prices/csv",
+                 files={"file": ("synthetic.csv", csv)})
+        assert r.status_code == 200, r.text
+        response = alice.get(f"/api/v4/portfolios/{pid}/overview")
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["attribution"]["reconciled"]
+        assert result["attribution"]["return_pct"] == 10
+        assert result["price_quality"]["complete"]
+        assert bob.get(f"/api/v4/portfolios/{pid}/overview").status_code == 404
