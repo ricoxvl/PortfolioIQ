@@ -170,5 +170,32 @@ def test_offline_benchmark_has_exactly_180_meaningfully_checked_cases():
     assert result["evaluated"]==180
     assert len(result["categories"])==9
     assert result["failing"]==0
-    assert all("actual_fixture" in str(result["categories"]) or result["passing"]==180
-               for _ in [0])
+    assert result["passing"] == 180
+    assert all(summary["passing"]==20 for summary in result["categories"].values())
+
+
+def test_live_provider_probe_is_never_called_without_three_explicit_conditions(monkeypatch,tmp_path):
+    from server.evaluation.live_analyst_probe import run
+    class Poison:
+        responses=SimpleNamespace(create=lambda **kw: (_ for _ in ()).throw(
+            AssertionError("Provider must never be contacted")))
+    out=tmp_path/"must_not_exist.json"
+    monkeypatch.delenv("OPENAI_API_KEY",raising=False)
+    monkeypatch.setenv("EVAL_EXTERNAL_AI","false")
+    with pytest.raises(ValueError,match="disabled"):
+        run(approved=True,max_cases=9,output=out,client=Poison())
+    monkeypatch.setenv("OPENAI_API_KEY","TEST_ONLY_NOT_A_REAL_KEY")
+    with pytest.raises(ValueError,match="disabled"):
+        run(approved=True,max_cases=9,output=out,client=Poison())
+    monkeypatch.setenv("EVAL_EXTERNAL_AI","true")
+    with pytest.raises(ValueError,match="disabled"):
+        run(approved=False,max_cases=9,output=out,client=Poison())
+    assert not out.exists()
+
+
+def test_live_provider_probe_requires_bounded_number_of_cases(monkeypatch,tmp_path):
+    from server.evaluation.live_analyst_probe import run
+    monkeypatch.setenv("OPENAI_API_KEY","TEST_ONLY_NOT_A_REAL_KEY")
+    monkeypatch.setenv("EVAL_EXTERNAL_AI","true")
+    with pytest.raises(ValueError,match="1–180"):
+        run(approved=True,max_cases=181,output=tmp_path/"none.json")
