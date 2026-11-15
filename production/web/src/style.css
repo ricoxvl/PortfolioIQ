@@ -120,3 +120,28 @@ details[open] summary { margin-bottom:10px; }
 .phase10-legend{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;color:#b4c7c2;font-size:12px}
 .phase10-dot{display:inline-block;background:rgba(136,206,170,.38);width:10px;height:10px;border-radius:2px;margin-right:6px}
 @media(max-width:750px){.phase10-results{grid-template-columns:1fr}.phase10-controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* Phase 11 private, on-demand reporting and threshold evaluation */
+.phase11-layout{display:grid;gap:18px}
+.phase11-export-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:20px 0}
+.phase11-export-grid>div{background:rgba(138,194,166,.055);border:1px solid rgba(138,194,166,.15);padding:18px;border-radius:12px;display:flex;flex-direction:column;align-items:flex-start;gap:11px}
+.phase11-export-grid h4{font-size:14px;margin:0;color:#dcefe8}
+.phase11-export-grid p{font-size:13px;line-height:1.55;color:#a6c1ba;flex:1;margin:0}
+.phase11-export-grid button{margin-top:auto}
+.phase11-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0;color:#a8c3bb;font-size:13px}
+.phase11-alert-list{display:grid;gap:10px;margin:18px 0}
+.phase11-alert{border:1px solid rgba(144,191,170,.18);background:rgba(137,190,163,.045);padding:15px;border-radius:12px}
+.phase11-alert-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.phase11-state{font-size:11px;border-radius:20px;padding:5px 10px;font-weight:700;background:#27343b;color:#c8d5d0}
+.phase11-state.state-triggered{background:#50352c;color:#ffe0ce}
+.phase11-state.state-clear{background:#1b4239;color:#d2f3e5}
+.phase11-alert-details{display:flex;flex-wrap:wrap;gap:12px 24px;font-size:12px;color:#a8beb7}
+.phase11-alert-details b{color:#e1ece6;font-variant-numeric:tabular-nums}
+.phase11-alert .fine-note{margin:12px 0 8px}
+.phase11-rule-form{padding-top:20px;margin-top:22px;border-top:1px solid rgba(150,187,167,.16)}
+.phase11-rule-form h4{margin:0 0 12px;color:#e7f0eb}
+.phase11-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0 16px}
+.phase11-controls label{display:flex;flex-direction:column;gap:7px;font-size:12px;color:#b0c5be}
+.phase11-controls select,.phase11-controls input{width:100%;min-width:0;box-sizing:border-box}
+@media(max-width:800px){.phase11-export-grid{grid-template-columns:1fr}.phase11-toolbar{flex-wrap:wrap}}

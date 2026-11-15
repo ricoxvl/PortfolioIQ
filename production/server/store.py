@@ -156,3 +156,12 @@ class PriceImportAudit(Base):
     observations: Mapped[int] = mapped_column(Integer,nullable=False)
     last_date: Mapped[datetime] = mapped_column(Date,nullable=False)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),default=now,nullable=False)
+class AlertRule(Base):
+    """Account-owned portfolio threshold, evaluated on-demand, never a push notification."""
+    __tablename__='portfolio_alert_rules'
+    id: Mapped[str] = mapped_column(String(36),primary_key=True,default=uid)
+    portfolio_id: Mapped[str] = mapped_column(ForeignKey('portfolios.id',ondelete='CASCADE'),index=True,nullable=False)
+    kind: Mapped[str] = mapped_column(String(35),nullable=False)
+    symbol: Mapped[str] = mapped_column(String(16),nullable=False,default='')
+    threshold: Mapped[float] = mapped_column(Float,nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),default=now,nullable=False)

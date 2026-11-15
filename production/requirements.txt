@@ -11,3 +11,5 @@ httpx>=0.27,<1
 openai>=2,<3
 alembic>=1.13,<2
 pytest>=8,<10
+reportlab>=4.2,<5
+pypdf>=5,<7
