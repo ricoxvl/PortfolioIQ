@@ -51,7 +51,7 @@ async def lifespan(app:FastAPI):
     store.init()
     yield
 
-app=FastAPI(title='PortfolioIQ Secure API',version='0.6.0',lifespan=lifespan,
+app=FastAPI(title='PortfolioIQ Secure API',version='0.7.0',lifespan=lifespan,
             description='Account-isolated, educational investment analytics. No trade execution.')
 
 # Reject unexpected Host headers. Configure an explicit domain before deploying.
@@ -412,21 +412,96 @@ def analyst(pid:str,body:Question,user:Account=Depends(csrf_protected),db:Sessio
     return guided_answer(body.question,dash,xr)
 
 def guided_answer(question,dash,xr):
-    s=dash['summary'];q=question.lower();risk=dash.get('risk')
-    sources=[{'label':'PortfolioIQ deterministic calculations','detail':'Account-scoped portfolio data; synthetic only for marked demos'}]
-    if any(x in q for x in ('overlap','etf','sector','concentrat','diversif','exposure')):
-        if not xr.get('available'):answer='Look-through analysis is unavailable until all current holdings have valid prices.'
+    """Explain only facts calculated from this authenticated portfolio.
+
+    Structured evidence is deterministic and deliberately independent of an LLM.
+    Each value is derived from dashboard or ETF look-through outputs, not prompt text.
+    """
+    s=dash['summary']
+    q=(question or '').casefold()
+    risk=dash.get('risk')
+    available=xr.get('available',False)
+    demo=bool(dash['portfolio'].get('is_demo'))
+    notices='These are fictional demo observations, not real prices or official ETF holdings.' if demo else 'Values rely on supplied data, which PortfolioIQ has not independently verified.'
+    evidence=[]
+    sources=[{'label':'Portfolio overview','detail':'Calculated from this account-scoped portfolio'}]
+    topic='overview'
+
+    if any(k in q for k in ('overlap','etf','sector','concentrat','diversif','exposure','underlying')):
+        topic='xray'
+        sources.append({'label':'Portfolio X-Ray','detail':'One-level, dated constituent look-through with unmapped exposure preserved'})
+        if not available:
+            answer='Look-through analysis is unavailable until all current holdings have valid prices.'
         else:
-            v=xr['summary'];answer=f"Look-through coverage represents {v['fund_coverage_pct']}% of held fund value. {v['duplicated_constituents']} underlying securities appear in multiple sources; ${v['unknown_fund_value']:,.2f} remains unclassified. Overlapping values are not extra losses."
-    elif any(x in q for x in ('risk','volatil','drawdown','sharpe','sortino','var')):
-        if risk:answer=f"Observed or simulated annualized volatility: {risk['volatility']}%; maximum drawdown: {risk['max_drawdown']}%. Check the data notice and observation window; risk estimates are not forecasts."
-        else:answer='Historical risk calculations are unavailable for this portfolio without sufficient complete price history. Concentration and hypothetical shocks can still be explored.'
-    elif any(x in q for x in ('return','perform','profit','twr','xirr','benchmark')):
-        if s['period_return'] is None:answer='Period return is unavailable: current holdings alone are not enough to reconstruct actual historical performance.'
-        else:answer=f"Portfolio period return: {s['period_return']}%. " + (f"Annualized XIRR: {s['xirr']}%. " if s.get('xirr') is not None else '') + 'Review the methodology for differences between synthetic fixed-holdings performance and ledger TWR.'
+            v=xr['summary']
+            covered=v.get('fund_coverage_pct')
+            covered_label=f'{covered:.2f}%' if covered is not None else 'unavailable'
+            overlap=xr.get('overlaps') or []
+            count=v.get('duplicated_constituents',len(overlap))
+            unknown=float(v.get('unknown_fund_value') or 0)
+            lead=(f'ETF look-through coverage is {covered_label} of the held fund value. '
+                  f'{count} underlying securities appear in multiple sources; '
+                  f'${unknown:,.2f} of ETF exposure remains unmapped, not lost. ')
+            if overlap:
+                display=[]
+                for row in overlap[:5]:
+                    sym=row['symbol']
+                    value=float(row['value'])
+                    weight=float(row['weight_pct'])
+                    parts=row.get('sources') or []
+                    source_labels=', '.join(x['symbol'] for x in parts)
+                    display.append(f'{sym}: ${value:,.2f} ({weight:.2f}% of portfolio) from {source_labels}')
+                    evidence.append({'label':sym,'value':f'${value:,.2f}',
+                        'detail':f'{weight:.2f}% of portfolio · '+source_labels,
+                        'sources':[{'symbol':x['symbol'],'value':round(float(x['value']),2)} for x in parts]})
+                answer=lead+'Largest identified overlaps: '+'; '.join(display)+'. '
+            else:
+                answer=lead+'No multi-source company overlap is identified from the available constituent records. '
+            answer+='Overlap represents the same underlying company across holdings, not additional portfolio value or a second loss. '+notices
+    elif any(k in q for k in ('risk','volatil','drawdown','sharpe','sortino','var','downside')):
+        topic='risk'
+        if not risk:
+            answer='Historical risk calculations are unavailable for this portfolio without sufficient complete price history. Concentration and hypothetical shocks can still be explored.'
+        else:
+            values=[('Annualized volatility','volatility','%'),('Maximum drawdown','max_drawdown','%'),
+                    ('Daily historical 95% VaR','var_95_daily','%'),('Sharpe ratio','sharpe','')]
+            for label,key,suffix in values:
+                value=risk.get(key)
+                if value is not None:evidence.append({'label':label,'value':f'{value}{suffix}', 'detail':'Synthetic historical sample' if demo else 'Imported complete valuation history'})
+            answer=(f"Observed or simulated annualized volatility: {risk['volatility']}%; maximum drawdown: {risk['max_drawdown']}%. "
+                    f"Daily historical 95% VaR: {risk.get('var_95_daily')}%, describing the fifth-percentile daily return, not the maximum possible loss. "
+                    'Risk estimates use the observation window and a 252-trading-day annualization convention; they are not forecasts. '+notices)
+    elif any(k in q for k in ('return','perform','profit','twr','xirr','benchmark')):
+        topic='performance'
+        if s.get('period_return') is None:
+            answer='Period return is unavailable: current holdings alone are not enough to reconstruct actual historical performance. No return or benchmark is inferred from a snapshot.'
+        else:
+            value=float(s['period_return'])
+            evidence.append({'label':'Period return','value':f'{value:+.2f}%','detail':'Illustrative buy-and-hold' if demo else 'Flow-adjusted time-weighted return'})
+            benchmark=s.get('benchmark_return')
+            if benchmark is not None:
+                evidence.append({'label':'Synthetic benchmark','value':f'{float(benchmark):+.2f}%','detail':'Fictional comparison, not live market performance'})
+            answer=f'Portfolio period return: {s["period_return"]}%. '
+            if s.get('xirr') is not None:answer+=f'Annualized XIRR: {s["xirr"]}%. '
+            if benchmark is not None:answer+=f'The synthetic reference returned {benchmark:+.2f}% over the same sample window. '
+            answer+='Synthetic fixed-holdings performance and ledger TWR/XIRR are different measures. '+notices
+    elif any(k in q for k in ('scenario','shock','correction','selloff','recovery')) and available:
+        topic='scenario'
+        scenario=shock_result(xr,preset='technology_slump')
+        evidence=[{'label':row['sector'],'value':f"${row['impact']:,.2f}",
+                   'detail':f"Assumed {row['shock_pct']:+.2f}% shock"} for row in scenario['breakdown'][:6]]
+        answer=(f"A hypothetical technology-led correction changes this portfolio by {scenario['change_pct']:+.2f}% "
+                f"(${scenario['change']:,.2f}), ending at ${scenario['after']:,.2f}. "
+                'This is a linear sensitivity estimate using assumed sector shocks, including unmapped ETF exposure; it is not a forecast. '+notices)
     else:
-        value=s['total_value']; answer=(f"Current portfolio value is ${value:,.2f} across {s['position_count']} positions. " if value is not None else 'Current portfolio value is unavailable because prices are missing. ')+ 'Ask about returns, volatility or ETF overlap.'
-    return {'answer':answer,'mode':'guided_calculation','sources':sources,'disclaimer':'Educational analytics only, not personalized investment advice.'}
+        value=s.get('total_value')
+        answer=(f'Current portfolio value is ${value:,.2f} across {s["position_count"]} positions. ' if value is not None else
+                'Current portfolio value is unavailable because prices are missing. ')
+        answer+='Ask about returns, volatility, ETF overlap or sector-shock scenarios. '+notices
+
+    return {'answer':answer,'mode':'guided_calculation','topic':topic,'evidence':evidence,
+            'sources':sources,'disclaimer':'Educational analytics only, not personalized investment advice. '+notices,
+            'limitations':notices}
 
 # Build output from React is served by FastAPI in single-container deployments.
 DIST=Path(__file__).resolve().parents[1]/'web'/'dist'
