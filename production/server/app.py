@@ -8,12 +8,13 @@ from typing import Literal
 
 from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
 from fastapi import FastAPI, Depends, HTTPException, Request, Response, UploadFile, File
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, text
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from . import store
 from .store import Account, Portfolio, Holding, Tx, Price, Constituent, Security, LoginSession
@@ -74,6 +75,8 @@ async def security_headers(request: Request, call_next):
         response.headers['Cache-Control'] = 'no-store'
     if os.getenv('COOKIE_SECURE','false').lower() == 'true':
         response.headers['Strict-Transport-Security'] = 'max-age=31536000'
+    if os.getenv('BETA_DEMO_ONLY','false').lower() == 'true':
+        response.headers['X-Robots-Tag'] = 'noindex, nofollow, noarchive'
     return response
 
 @app.get('/api/v4/health')
@@ -83,6 +86,22 @@ def health():
             'invitation_required':bool(os.getenv('BETA_INVITE_CODE')),
             'demo_only':os.getenv('BETA_DEMO_ONLY','false').lower()=='true',
             'capabilities':['auth','owner_scoped_portfolios','ledger','price_csv','fund_constituents','xray','stress','ai_evaluation','private_beta_invites','account_export','account_deletion']}
+
+@app.get('/api/v4/ready')
+def readiness(db: Session = Depends(database)):
+    """Readiness reports 503 if the database cannot execute a trivial query."""
+    try:
+        db.execute(text('SELECT 1')).scalar_one()
+    except SQLAlchemyError:
+        raise HTTPException(status_code=503, detail='Database unavailable')
+    return {'status': 'ready'}
+
+
+@app.get('/robots.txt', response_class=PlainTextResponse)
+def robots():
+    # Login is invite-only, but the website's existence is publicly accessible.
+    return 'User-agent: *\nDisallow: /\n'
+
 
 class Credentials(BaseModel):
     email:str=Field(min_length=5,max_length=254)
