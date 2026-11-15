@@ -34,7 +34,7 @@ def test_create_account_xray_scenario_analyst_and_signout():
         page.get_by_role('button', name='Risk Intelligence').click()
         expect(page.get_by_role('heading', name='Historical drawdown')).to_be_visible()
         expect(page.get_by_role('heading', name='Daily return distribution')).to_be_visible()
-        expect(page.get_by_text('Observed daily return')).to_be_visible()
+        expect(page.get_by_text('Observed daily return', exact=True)).to_be_visible()
 
         page.get_by_role('button', name='Portfolio X-Ray').click()
         expect(page.get_by_role('heading', name='Portfolio X-Ray', exact=True)).to_be_visible()
