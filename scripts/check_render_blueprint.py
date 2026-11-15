@@ -26,7 +26,7 @@ for name, value in [('DEPLOYMENT_MODE', 'production'), ('COOKIE_SECURE', 'true')
     assert str(vars[name].get('value')).lower() == value, f'Unsafe {name}'
 for key in ('AUTH_RATE_LIMIT_SECRET', 'BETA_INVITE_CODE'):
     assert vars[key].get('generateValue') is True, f'No automatically generated {key}'
-assert vars['TRUSTED_HOSTS']['fromService']['envVarKey'] == 'RENDER_EXTERNAL_HOSTNAME'
+assert vars['TRUSTED_HOSTS'].get('value') == 'portfolioiq-private-beta.onrender.com', 'TRUSTED_HOSTS must match the exact approved Render hostname'
 assert vars['DATABASE_URL']['fromDatabase']['name'] == db['name']
 assert all(v['key'] != 'OPENAI_API_KEY' for v in web['envVars'])
 print('Render Blueprint YAML parsed and demo-only deployment invariants passed.')
