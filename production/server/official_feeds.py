@@ -1,7 +1,8 @@
 """Rights-conscious macro reference data, not securities prices or portfolio returns.
 
-EURO FX: ECB-only daily observations from Frankfurter's provider-filtered v2 API;
-that is an attributed *redistributor*, not direct authentication against ECB.
+EURO FX: ECB-attributed daily observations via Valuuttakurssi with
+Frankfurter ECB-provider-filtered fallback. Both are third-party redistributors,
+not direct authentication against the ECB source.
 TREASURY: official Treasury CSV first, with a transparently labeled public-domain
 Treasury mirror if the official host is inaccessible. No fake fallback numbers.
 
@@ -22,13 +23,15 @@ import httpx
 ECB_ABOUT = 'https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html'
 ECB_RIGHTS = 'https://www.ecb.europa.eu/services/using-our-site/disclaimer/html/index.en.html'
 FRANKFURTER_ABOUT = 'https://frankfurter.dev/license/'
+VALUUTTA_SOURCE = 'https://valuuttakurssi.fi/api/v1/usd.csv'
+VALUUTTA_ABOUT = 'https://valuuttakurssi.fi/en/api/'
 FRANKFURTER_BASE = 'https://api.frankfurter.dev/v2/providers/ecb/rates'
 TREASURY_ABOUT = 'https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve'
 TREASURY_BASE = 'https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/'
 TREASURY_MIRROR = 'https://aidb.si/d/us-treasury-yields.csv'
 TREASURY_MIRROR_ABOUT = 'https://aidb.si/d/us-treasury-yields'
 CACHE_SECONDS = 6 * 3600
-MAX_FX_BYTES = 40_000
+MAX_FX_BYTES = 60_000
 MAX_TREASURY_BYTES = 350_000
 MAX_MIRROR_BYTES = 950_000
 
@@ -89,6 +92,22 @@ def parse_frankfurter_ecb_json(raw: str) -> list[dict]:
     return [{'date':day.isoformat(),'value':round(value,6)} for day,value in sorted(by_day.items())][-90:]
 
 
+def parse_valuutta_ecb_csv(raw: str) -> list[dict]:
+    """Validate ECB-attributed EUR/USD history republished by Valuuttakurssi.fi."""
+    reader=csv.DictReader(io.StringIO(raw.lstrip('\ufeff')))
+    cols={str(s).strip().lower():s for s in (reader.fieldnames or []) if s}
+    if not {'date','rate'}<=set(cols):raise SourceDataError('ECB distributor CSV lacks date/rate')
+    values={}
+    for i,row in enumerate(reader):
+        if i>405:raise SourceDataError('ECB distributor CSV has excessive observations')
+        if not row or not any(str(v or '').strip() for v in row.values()):continue
+        day=_trading_day(row.get(cols['date']),fmt='%Y-%m-%d')
+        if day in values:raise SourceDataError('ECB distributor has duplicate dates')
+        values[day]=_rate(row.get(cols['rate']),ceiling=100)
+    if not 10<=len(values)<=400:raise SourceDataError('ECB distributor has insufficient or excessive observations')
+    return [{'date':day.isoformat(),'value':round(value,6)} for day,value in sorted(values.items())][-90:]
+
+
 def _parsed_treasury_row(day:date,raw:dict,cols:dict,*,mirror:bool)->dict|None:
     values={}
     for key,label in [('yield_3m' if mirror else '3 mo','3m'),
@@ -124,7 +143,7 @@ def parse_treasury_mirror_csv(raw:str)->list[dict]:return _parse_treasury(raw,mi
 
 
 def _download_fixed(url:str,*,max_bytes:int,client=None)->str:
-    if url not in (fx_source_url(),treasury_source_url(),TREASURY_MIRROR):
+    if url not in (VALUUTTA_SOURCE,fx_source_url(),treasury_source_url(),TREASURY_MIRROR):
         raise SourceDataError('Unapproved external host or route')
     own=client is None
     if own:client=httpx.Client(timeout=httpx.Timeout(9.0),follow_redirects=False,trust_env=False)
@@ -172,6 +191,7 @@ def _cached_sources(key:str,options:list[tuple[str,str,object,int]],*,client=Non
 
 def official_reference_snapshot(*,client=None)->dict:
     fx=_cached_sources('ecb_fx',[
+       ('Valuuttakurssi (ECB-source redistributed)',VALUUTTA_SOURCE,parse_valuutta_ecb_csv,MAX_FX_BYTES),
        ('Frankfurter (ECB provider-filtered)',fx_source_url(),parse_frankfurter_ecb_json,MAX_FX_BYTES)
     ],client=client)
     yields=_cached_sources('treasury',[
@@ -181,9 +201,10 @@ def official_reference_snapshot(*,client=None)->dict:
     return {
       'type':'sourced_macro_context','not_portfolio_prices':True,
       'fx':{**fx,'name':'ECB EUR/USD reference rates','unit':'USD per EUR',
-            'publisher':'European Central Bank (redistributed by Frankfurter)',
-            'about_url':ECB_ABOUT,'rights_url':ECB_RIGHTS,'redistributor_url':FRANKFURTER_ABOUT,
-            'note':'ECB-provider-scoped reference rates via Frankfurter (NOT directly authenticated against ECB). Informational, non-executable prices. Credits: ECB and Frankfurter.'},
+            'publisher':'European Central Bank (redistributed by third-party service)',
+            'about_url':ECB_ABOUT,'rights_url':ECB_RIGHTS,
+            'redistributor_url':VALUUTTA_ABOUT if fx.get('via','').startswith('Valuuttakurssi') else FRANKFURTER_ABOUT,
+            'note':'ECB-attributed historical reference rates via a third-party redistributor (NOT independently reconciled with the ECB server). Not executable currency quotes. Credit the ECB and the listed distributor.'},
       'treasury':{**yields,'name':'U.S. Treasury daily nominal par yields',
             'unit':'annualized yield percent','publisher':'U.S. Department of the Treasury',
             'about_url':TREASURY_ABOUT,'mirror_url':TREASURY_MIRROR_ABOUT,
