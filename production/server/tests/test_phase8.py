@@ -178,6 +178,15 @@ def test_phase8_is_exposed_only_to_portfolio_owner_in_authenticated_api(monkeypa
         r = post(alice, f"/portfolios/{pid}/prices/csv",
                  files={"file": ("synthetic.csv", csv)})
         assert r.status_code == 200, r.text
+        # Metadata supplied by a user cannot silently permit adjusted or EUR
+        # closes to enter a raw-USD ledger and double count corporate actions.
+        for bad_csv in (
+            "symbol,date,close,adjustment,currency\nTEST,2026-10-02,120,all,USD\n",
+            "symbol,date,close,adjustment,currency\nTEST,2026-10-02,120,none,EUR\n",
+        ):
+            rejected = post(alice, f"/portfolios/{pid}/prices/csv",
+                            files={"file": ("bad-prices.csv", bad_csv.encode())})
+            assert rejected.status_code == 422, rejected.text
         response = alice.get(f"/api/v4/portfolios/{pid}/overview")
         assert response.status_code == 200, response.text
         result = response.json()
