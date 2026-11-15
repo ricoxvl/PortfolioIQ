@@ -31,6 +31,16 @@ def test_create_account_xray_scenario_analyst_and_signout():
         concentration=page.locator('.kpi').filter(has_text='Concentration (top 3)')
         assert not concentration.locator('strong').inner_text().startswith('+')
 
+        page.get_by_role('button', name='Market Intelligence').click()
+        expect(page.get_by_role('heading', name='Market Intelligence', exact=True)).to_be_visible()
+        expect(page.get_by_role('heading', name='Historical benchmark research')).to_be_visible()
+        expect(page.get_by_role('heading', name='ETF disclosure quality')).to_be_visible()
+        expect(page.get_by_text('No real benchmark close series imported or fetched')).to_be_visible()
+        page.get_by_role('combobox', name='Select benchmark').select_option('QQQ')
+        expect(page.get_by_text('No verified source')).to_be_visible()
+        expect(page.get_by_role('progressbar', name='Mapped VOO constituent coverage')).to_be_visible()
+        expect(page.get_by_text('FICTIONAL').first).to_be_visible()
+
         page.get_by_role('button', name='Risk Intelligence').click()
         expect(page.get_by_role('heading', name='Historical drawdown')).to_be_visible()
         expect(page.get_by_role('heading', name='Daily return distribution')).to_be_visible()
