@@ -160,6 +160,6 @@ def test_render_blueprint_is_invitation_only_and_demo_only():
     assert 'BETA_DEMO_ONLY' in doc and 'value: "true"' in doc
     assert 'BETA_INVITE_CODE' in doc and doc.count('generateValue: true') >= 2
     assert 'healthCheckPath: /api/v4/ready' in doc
-    assert 'RENDER_EXTERNAL_HOSTNAME' in doc
+    assert 'value: portfolioiq-private-beta.onrender.com' in doc
     assert 'ipAllowList: []' in doc
     assert 'OPENAI_API_KEY' not in doc
