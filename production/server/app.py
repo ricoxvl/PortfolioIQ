@@ -138,7 +138,8 @@ class Scenario(BaseModel):
 class Question(BaseModel):
     question:str=Field(min_length=3,max_length=1200)
     use_ai:bool=False
-    sec_cik:str|None=Field(default=None,pattern=r'^[0-9]{1,10}
+    sec_cik:str|None=Field(default=None,min_length=1,max_length=10)
+    sec_form:Literal['10-K','10-Q']='10-K'
 
 class TransactionIn(BaseModel):
     occurred_on:date
