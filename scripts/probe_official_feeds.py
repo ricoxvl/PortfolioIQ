@@ -1,31 +1,32 @@
 #!/usr/bin/env python3
-"""Optional external, nonblocking connectivity probe of the two official sources.
-
-No credentials, no writes, no user data. Intended for a separate advisory CI job:
-upstream outages never block production finance/security tests or cause bogus fallbacks.
-"""
+"""Advisory external source verification: no secrets, no writes, no synthetic data."""
 from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'production'))
 from server.official_feeds import (
-    _download_fixed,ECB_SOURCE,MAX_ECB_BYTES,parse_ecb_csv,
-    treasury_source_url,MAX_TREASURY_BYTES,parse_treasury_csv
+ fx_source_url,parse_frankfurter_ecb_json,MAX_FX_BYTES,
+ treasury_source_url,parse_treasury_csv,MAX_TREASURY_BYTES,
+ TREASURY_MIRROR,parse_treasury_mirror_csv,MAX_MIRROR_BYTES,_download_fixed
 )
 
-
 def run():
-    ok=True
-    for name,url,max_bytes,parse in [
-        ('European Central Bank EUR/USD',ECB_SOURCE,MAX_ECB_BYTES,parse_ecb_csv),
-        ('U.S. Treasury nominal par yields',treasury_source_url(),MAX_TREASURY_BYTES,parse_treasury_csv),
-    ]:
-        try:
-            rows=parse(_download_fixed(url,max_bytes=max_bytes))
-            print(f'PASS: {name}: {len(rows)} published dated observations; newest={rows[-1]["date"]}; publisher={url.split("/")[2]}')
-        except Exception as e:
-            ok=False
-            # Avoid logging request URL, headers, or any provider response body.
-            print(f'UNAVAILABLE: {name}: official CSV not retrievable or validation failed ({type(e).__name__})')
-    return 0 if ok else 1
+    okay=True
+    configs=[
+       ('ECB-only FX via Frankfurter',[(fx_source_url(),parse_frankfurter_ecb_json,MAX_FX_BYTES)]),
+       ('U.S. Treasury nominal yields',[(treasury_source_url(),parse_treasury_csv,MAX_TREASURY_BYTES),
+                                        (TREASURY_MIRROR,parse_treasury_mirror_csv,MAX_MIRROR_BYTES)]),
+    ]
+    for name,candidates in configs:
+        success=False
+        for url,parser,maximum in candidates:
+            try:
+                rows=parser(_download_fixed(url,max_bytes=maximum))
+                print(f'PASS: {name}: {len(rows)} published observations, last {rows[-1]["date"]}; via {url.split("/")[2]}')
+                success=True;break
+            except Exception as exc:
+                # All URLs are fixed, and only safe categorical messages are logged.
+                print(f'Unavailable at {url.split("/")[2]}: {type(exc).__name__}: {str(exc)[:100]}')
+        if not success:okay=False
+    return 0 if okay else 1
 
 if __name__=='__main__':sys.exit(run())
