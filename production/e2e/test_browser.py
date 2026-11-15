@@ -95,6 +95,8 @@ def test_create_account_xray_scenario_analyst_and_signout():
 
         page.get_by_role('button', name='IQ Analyst').click()
         expect(page.get_by_role('heading', name='IQ Analyst', exact=True)).to_be_visible()
+        expect(page.get_by_role('heading', name='SEC filing research')).to_be_visible()
+        expect(page.get_by_role('button', name='Retrieve evidence from SEC')).to_be_disabled()
         page.get_by_role('button', name=re.compile('Analyze portfolio')).click()
         expect(page.get_by_text('DETERMINISTIC EXPLANATION')).to_be_visible(timeout=15000)
         expect(page.get_by_text('Source contributions').first).to_be_visible()
