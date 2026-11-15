@@ -52,3 +52,25 @@ def test_create_account_xray_scenario_analyst_and_signout():
         expect(page.get_by_role('heading', name='Create your workspace')).to_be_visible(timeout=10000)
         assert not errors, 'JavaScript errors: ' + '; '.join(errors)
         browser.close()
+
+
+def test_account_export_and_password_confirmed_deletion():
+    """Check user-facing privacy controls in the compiled React app."""
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page(accept_downloads=True, viewport={'width': 1366, 'height': 900})
+        page.goto(BASE_URL, wait_until='domcontentloaded')
+        page.get_by_label('Email address').fill(f'e2e-delete-{uuid4().hex}@portfolioiq.test')
+        page.get_by_label('Password').fill('StrongUniqueE2EPassword!123')
+        page.get_by_role('button', name=re.compile('Create workspace')).click()
+        expect(page.get_by_role('heading', name='Overview', exact=True)).to_be_visible(timeout=15000)
+        page.get_by_role('button', name='Settings').click()
+        expect(page.get_by_role('heading', name='Account and privacy')).to_be_visible()
+        with page.expect_download() as event:
+            page.get_by_role('button', name=re.compile('Download my data')).click()
+        assert event.value.suggested_filename == 'portfolioiq-account-export.json'
+        page.get_by_label('Confirm your password').fill('StrongUniqueE2EPassword!123')
+        page.get_by_label('Type DELETE to confirm').fill('DELETE')
+        page.get_by_role('button', name='Delete account and data').click()
+        expect(page.get_by_role('heading', name='Create your workspace')).to_be_visible(timeout=15000)
+        browser.close()

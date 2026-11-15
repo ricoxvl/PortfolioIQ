@@ -27,3 +27,12 @@ coverage/
 playwright-report/
 test-results/
 production/web/.vite/
+
+# Never commit beta deployment credentials, database dumps, or local exports.
+.env.beta
+**/.env.beta
+**/.env.production
+*.dump
+*.backup
+backups/
+portfolioiq-account-export*.json

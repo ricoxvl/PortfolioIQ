@@ -1,0 +1,20 @@
+# Domain and HTTPS certificate managed by Caddy/ACME.
+# Ensure DNS and ports 80/443 are configured before running this example.
+{$BETA_DOMAIN} {
+    encode zstd gzip
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        X-Frame-Options DENY
+    }
+    reverse_proxy app:8000 {
+        # Always replace user-supplied forwarded headers rather than trust them.
+        header_up Host {host}
+        header_up -X-Forwarded-For
+        header_up -X-Real-IP
+    }
+    log {
+        output stdout
+        format console
+    }
+}

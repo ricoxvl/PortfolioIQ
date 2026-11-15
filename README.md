@@ -1,3 +1,5 @@
+> **Phase 5 update (v0.6, source implementation):** private beta signup gating, demo-only policy, account JSON export, password-confirmed account deletion, Settings screen, five-job CI workflow, and optional HTTPS beta Compose scaffold. **Not deployed**; React/PostgreSQL/Chromium/Docker build results remain unverified until CI/host tests run. See [Phase 5 Deployment](docs/PHASE5_DEPLOYMENT.md) and [Private Beta Test Plan](docs/PHASE5_BETA_TEST_PLAN.md).
+
 # PortfolioIQ — Investment Portfolio Analytics & Intelligence Platform
 
 ## Latest development release — v0.5 GitHub-ready validation

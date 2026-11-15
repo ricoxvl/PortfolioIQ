@@ -19,7 +19,7 @@ jobs:
       - run: pip install -r production/requirements.txt
       - run: python scripts/prepublish_check.py
       - run: python -m pytest -q backend/tests
-      - run: python -m pytest -q production/server/tests/test_v4.py production/server/tests/test_hardening.py
+      - run: python -m pytest -q production/server/tests/test_v4.py production/server/tests/test_hardening.py production/server/tests/test_phase5.py
       - run: python -m server.evaluation.evaluate
         working-directory: production
       - name: Verify frozen SQLite schema migrations
@@ -113,3 +113,16 @@ jobs:
               raise RuntimeError('PortfolioIQ API did not start')
           PY
           python -m pytest -q production/e2e/test_browser.py
+
+
+  image:
+    name: Beta container packaging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build beta Docker image (React + FastAPI)
+        run: docker build -f production/Dockerfile -t portfolioiq:ci .
+      - name: Validate deployment config file syntax
+        run: |
+          cp production/.env.beta.example production/.env.beta
+          docker compose --env-file production/.env.beta -f production/compose.beta.yaml config --quiet

@@ -1,6 +1,6 @@
 """PortfolioIQ v0.4 secured, account-isolated API (new app; legacy v0.3 remains local only)."""
 from __future__ import annotations
-import csv, io, math, os, re
+import csv, io, math, os, re, secrets
 from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
@@ -8,7 +8,7 @@ from typing import Literal
 
 from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
 from fastapi import FastAPI, Depends, HTTPException, Request, Response, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field
@@ -42,11 +42,15 @@ async def lifespan(app:FastAPI):
             raise RuntimeError('Production requires explicit TRUSTED_HOSTS')
         if not os.getenv('AUTH_RATE_LIMIT_SECRET') or len(os.getenv('AUTH_RATE_LIMIT_SECRET','')) < 32:
             raise RuntimeError('Production requires a random AUTH_RATE_LIMIT_SECRET of 32+ characters')
+        if len(os.getenv('BETA_INVITE_CODE','')) < 16:
+            raise RuntimeError('Production beta requires a 16+ character BETA_INVITE_CODE to gate sign-ups')
+        if os.getenv('BETA_DEMO_ONLY','false').lower() != 'true':
+            raise RuntimeError('Production beta currently requires BETA_DEMO_ONLY=true until data controls are audited')
     # Local convenience; use Alembic revisions for planned schema changes.
     store.init()
     yield
 
-app=FastAPI(title='PortfolioIQ Secure API',version='0.5.0',lifespan=lifespan,
+app=FastAPI(title='PortfolioIQ Secure API',version='0.6.0',lifespan=lifespan,
             description='Account-isolated, educational investment analytics. No trade execution.')
 
 # Reject unexpected Host headers. Configure an explicit domain before deploying.
@@ -66,19 +70,35 @@ async def security_headers(request: Request, call_next):
         "frame-ancestors 'none'; form-action 'self'; connect-src 'self'; "
         "script-src 'self'; style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data:; font-src 'self' data:")
+    if request.url.path.startswith('/api/v4/'):
+        response.headers['Cache-Control'] = 'no-store'
     if os.getenv('COOKIE_SECURE','false').lower() == 'true':
         response.headers['Strict-Transport-Security'] = 'max-age=31536000'
     return response
 
 @app.get('/api/v4/health')
 def health():
-    return {'status':'ok','version':'0.5.0','database':'postgresql' if store.DATABASE_URL.startswith('postgresql') else 'sqlite_local',
+    return {'status':'ok','version':'0.6.0','database':'postgresql' if store.DATABASE_URL.startswith('postgresql') else 'sqlite_local',
             'data_notice':'Synthetic demo or explicitly imported holdings; no live broker data.',
-            'capabilities':['auth','owner_scoped_portfolios','ledger','price_csv','fund_constituents','xray','stress','ai_evaluation']}
+            'invitation_required':bool(os.getenv('BETA_INVITE_CODE')),
+            'demo_only':os.getenv('BETA_DEMO_ONLY','false').lower()=='true',
+            'capabilities':['auth','owner_scoped_portfolios','ledger','price_csv','fund_constituents','xray','stress','ai_evaluation','private_beta_invites','account_export','account_deletion']}
 
 class Credentials(BaseModel):
     email:str=Field(min_length=5,max_length=254)
     password:str=Field(min_length=1,max_length=128)
+
+class RegistrationCredentials(Credentials):
+    invite_code: str | None = Field(default=None, max_length=256)
+
+class DeleteAccountRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=128)
+    confirmation: Literal['DELETE']
+
+
+def ensure_beta_edit_allowed():
+    if os.getenv('BETA_DEMO_ONLY','false').lower() == 'true':
+        raise HTTPException(403, 'Private beta is demo-only; imports and custom portfolios are disabled')
 
 class NewPortfolio(BaseModel):
     name:str=Field(min_length=1,max_length=75)
@@ -106,8 +126,12 @@ class TransactionIn(BaseModel):
     asset_class:str='Equity'
 
 @app.post('/api/v4/auth/register',status_code=201)
-def register(body:Credentials,response:Response,request:Request,db:Session=Depends(database)):
+def register(body:RegistrationCredentials,response:Response,request:Request,db:Session=Depends(database)):
     enforce_login_throttle(request,db)
+    invite = os.getenv('BETA_INVITE_CODE','')
+    if invite and not secrets.compare_digest(body.invite_code or '', invite):
+        record_login_failure(request,db)
+        raise HTTPException(403,'Valid beta invitation code required')
     email=normalize_email(body.email); check_password(body.password)
     if db.scalar(select(Account.id).where(Account.email==email)):
         record_login_failure(request,db)
@@ -135,6 +159,51 @@ def login(body:Credentials,response:Response,request:Request,db:Session=Depends(
 @app.get('/api/v4/auth/me')
 def me(user:Account=Depends(current_user)):
     return {'id':user.id,'email':user.email}
+
+@app.get('/api/v4/account/export')
+def export_account(user:Account=Depends(current_user),db:Session=Depends(database)):
+    """Portable account-owned records only; never include credentials or session tokens."""
+    portfolios=db.scalars(select(Portfolio).where(Portfolio.account_id==user.id).order_by(Portfolio.created_at)).all()
+    exported=[]
+    for p in portfolios:
+        holdings=db.scalars(select(Holding).where(Holding.portfolio_id==p.id)).all()
+        tx=db.scalars(select(Tx).where(Tx.portfolio_id==p.id).order_by(Tx.occurred_on,Tx.id)).all()
+        prices=db.scalars(select(Price).where(Price.portfolio_id==p.id).order_by(Price.trading_day)).all()
+        securities=db.scalars(select(Security).where(Security.portfolio_id==p.id)).all()
+        constituents=db.scalars(select(Constituent).where(Constituent.portfolio_id==p.id)).all()
+        exported.append({
+            'name':p.name,'kind':p.kind,'description':p.description,'is_demo':p.is_demo,'cash':p.cash,
+            'holdings':[{'symbol':h.symbol,'name':h.name,'sector':h.sector,'asset_class':h.asset_class,
+                         'quantity':h.quantity,'avg_cost':h.avg_cost,'current_price':h.current_price} for h in holdings],
+            'transactions':[{'occurred_on':t.occurred_on.isoformat(),'kind':t.kind,'symbol':t.symbol,
+                             'quantity':t.quantity,'unit_price':t.unit_price,'amount':t.amount,'memo':t.memo} for t in tx],
+            'prices':[{'symbol':v.symbol,'date':v.trading_day.isoformat(),'close':v.close,'source':v.source} for v in prices],
+            'securities':[{'symbol':v.symbol,'name':v.name,'sector':v.sector,'asset_class':v.asset_class} for v in securities],
+            'constituents':[{'fund_symbol':v.fund_symbol,'underlying_symbol':v.underlying_symbol,'sector':v.sector,
+                             'weight_pct':v.weight_pct,'as_of':v.as_of.isoformat(),'source':v.source} for v in constituents]})
+    return JSONResponse({'schema_version':1,'exported_at':store.now().isoformat(),
+                         'account':{'email':user.email,'created_at':user.created_at.isoformat()},
+                         'portfolios':exported}, headers={'Content-Disposition':'attachment; filename="portfolioiq-account-export.json"',
+                                                        'Cache-Control':'no-store'})
+
+@app.post('/api/v4/account/delete')
+def delete_account(body:DeleteAccountRequest,response:Response,user:Account=Depends(csrf_protected),db:Session=Depends(database)):
+    """Hard-delete this user's records in one transaction (including SQLite without FK enforcement)."""
+    try:
+        if not PWD.verify(user.password_hash,body.password):
+            raise HTTPException(403,'Password confirmation failed')
+    except (VerifyMismatchError,VerificationError,InvalidHashError):
+        raise HTTPException(403,'Password confirmation failed')
+    portfolios=db.scalars(select(Portfolio.id).where(Portfolio.account_id==user.id)).all()
+    if portfolios:
+        for model in (Holding,Tx,Price,Constituent,Security):
+            db.execute(delete(model).where(model.portfolio_id.in_(portfolios)))
+        db.execute(delete(Portfolio).where(Portfolio.account_id==user.id))
+    db.execute(delete(LoginSession).where(LoginSession.account_id==user.id))
+    db.delete(user)
+    db.commit()
+    clear_session(response)
+    return {'deleted':True,'notice':'Account and associated portfolio records deleted; external backup retention is governed by hosting policy.'}
 
 @app.post('/api/v4/auth/logout')
 def logout(response:Response, user:Account=Depends(csrf_protected),req:Request=None,db:Session=Depends(database)):
@@ -181,6 +250,7 @@ def list_portfolios(user:Account=Depends(current_user),db:Session=Depends(databa
 
 @app.post('/api/v4/portfolios',status_code=201)
 def create_portfolio(body:NewPortfolio,user:Account=Depends(csrf_protected),db:Session=Depends(database)):
+    ensure_beta_edit_allowed()
     p=Portfolio(account_id=user.id,name=body.name.strip(),description='User-provided financial data; not live prices',kind=body.kind,is_demo=False)
     db.add(p);db.commit()
     return {'id':p.id,'name':p.name,'kind':p.kind}
@@ -218,6 +288,7 @@ async def parse_csv(file:UploadFile,maxbytes=500000):
 @app.post('/api/v4/portfolios/{pid}/holdings/csv')
 async def import_holdings(pid:str,file:UploadFile=File(...),user:Account=Depends(csrf_protected),db:Session=Depends(database)):
     p=owned(db,pid,user)
+    ensure_beta_edit_allowed()
     if p.is_demo or p.kind!='snapshot':raise HTTPException(422,'Only user snapshot portfolios accept holdings imports')
     rows=await parse_csv(file)
     expected={'symbol','name','sector','asset_class','quantity','avg_cost','current_price'}
@@ -241,6 +312,7 @@ async def import_holdings(pid:str,file:UploadFile=File(...),user:Account=Depends
 @app.post('/api/v4/portfolios/{pid}/constituents/csv')
 async def import_constituents(pid:str,file:UploadFile=File(...),user:Account=Depends(csrf_protected),db:Session=Depends(database)):
     p=owned(db,pid,user)
+    ensure_beta_edit_allowed()
     if p.is_demo:raise HTTPException(422,'Demo fund disclosures are immutable')
     rows=await parse_csv(file)
     permitted={h.symbol for h in db.scalars(select(Holding).where(Holding.portfolio_id==p.id)) if h.asset_class in ('ETF','Commodity ETF')} if p.kind=='snapshot' else \
@@ -264,6 +336,7 @@ def transactions(pid:str,user:Account=Depends(current_user),db:Session=Depends(d
 @app.post('/api/v4/portfolios/{pid}/transactions',status_code=201)
 def add_transaction(pid:str,body:TransactionIn,user:Account=Depends(csrf_protected),db:Session=Depends(database)):
     p=owned(db,pid,user)
+    ensure_beta_edit_allowed()
     if p.kind!='ledger' or p.is_demo:raise HTTPException(422,'Only editable ledger portfolios accept transactions')
     try: item=validate_tx(body.model_dump(mode='json'))
     except (ValueError,TypeError) as e:raise HTTPException(422,str(e))
@@ -290,6 +363,7 @@ def add_transaction(pid:str,body:TransactionIn,user:Account=Depends(csrf_protect
 @app.post('/api/v4/portfolios/{pid}/prices/csv')
 async def price_csv(pid:str,file:UploadFile=File(...),user:Account=Depends(csrf_protected),db:Session=Depends(database)):
     p=owned(db,pid,user)
+    ensure_beta_edit_allowed()
     if p.kind!='ledger':raise HTTPException(422,'Prices are associated with ledger portfolios')
     rows=await parse_csv(file)
     if not {'symbol','date','close'}.issubset(rows[0]):raise HTTPException(422,'Required: symbol,date,close')

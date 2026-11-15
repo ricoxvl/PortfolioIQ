@@ -1,4 +1,8 @@
-# PortfolioIQ v0.5 — GitHub-Ready Secure Research Workspace
+## Phase 5 (v0.6) — implementation status
+
+This update adds optional invite-only sign-up, forced fictional-demo-only mode in production, account export/deletion, and a Settings screen. New regression tests verify the privacy operations and beta controls. **No public deployment has been performed and the project is not security-audited.** Review [Phase 5 Deployment](../docs/PHASE5_DEPLOYMENT.md) and [Beta Test Plan](../docs/PHASE5_BETA_TEST_PLAN.md). GitHub Actions results must be verified separately.
+
+# PortfolioIQ v0.6 — Phase 5 Private Beta Candidate
 
 **A runnable account-isolated investment analytics prototype, with an optional React + TypeScript frontend.** Its default UI remains available offline without Node.js. It is **not** a production-audited financial service, investment adviser, brokerage service or trading app.
 
