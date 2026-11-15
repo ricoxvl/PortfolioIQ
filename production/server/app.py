@@ -408,6 +408,12 @@ async def price_csv(pid:str,file:UploadFile=File(...),user:Account=Depends(csrf_
     parsed=[];pairs=set()
     try:
         for r in rows:
+            # Prevent silently double-counted split/dividend effects in the ledger.
+            # Older three-column imports remain accepted as user-attested raw USD.
+            if 'adjustment' in r and (r.get('adjustment') or '').strip().lower() not in ('none','raw','unadjusted'):
+                raise ValueError('Ledger prices must be raw unadjusted closes; adjusted closes may double count splits and dividends')
+            if 'currency' in r and (r.get('currency') or '').strip().upper() != 'USD':
+                raise ValueError('Ledger closing-price imports currently support USD only')
             symbol=r['symbol'].strip().upper();day=validate_day(r['date'].strip());close=float(r['close'])
             if not SYMBOL_RE.fullmatch(symbol) or not math.isfinite(close) or not 0<close<=1e9:raise ValueError('Invalid price row')
             if (symbol,day) in pairs:raise ValueError('Duplicate symbol/date in file')
@@ -421,7 +427,9 @@ async def price_csv(pid:str,file:UploadFile=File(...),user:Account=Depends(csrf_
         if existing:existing.close=close;existing.source='user_csv'
         else:db.add(Price(portfolio_id=p.id,symbol=sym,trading_day=day,close=close,source='user_csv'))
     db.commit()
-    return {'imported':len(parsed),'source':'user_csv'}
+    return {'imported':len(parsed),'source':'user_csv','adjustment':'user_attested_unadjusted',
+            'currency':'USD_assumed_if_unspecified',
+            'notice':'CSV provenance and unadjusted-price status are user-attested, not independently verified.'}
 
 
 @app.get('/api/v4/portfolios/{pid}/data-integrity')
