@@ -95,3 +95,14 @@ details[open] summary { margin-bottom:10px; }
 .issuer-link span:nth-child(2){flex:1;overflow-wrap:anywhere;}
 .issuer-link:hover{border-color:#8cd8b5;}
 @media(max-width:940px){.official-grid{grid-template-columns:1fr;}}
+
+/* Phase 7/1.0: high-integrity data controls; demo reads never imply live pricing. */
+.provenance-panel{border-color:#31524d}
+.integrity-status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin:15px 0}
+.integrity-status-grid>div{background:#121f24;border:1px solid #283b42;border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.integrity-status-grid span{font-size:12px;color:#91a8a9}
+.integrity-status-grid strong{font-size:12px;letter-spacing:.4px;color:#b4e9d4}
+.provenance-panel .source-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:14px;padding:14px;background:#101b20;border-radius:10px}
+.provenance-panel .source-actions label{min-width:180px;display:flex;flex-direction:column;gap:6px;font-size:12px;color:#c5d8d7}
+.provenance-panel .source-actions select{background:#12262b;color:#e9f7f0;border:1px solid #325048;border-radius:7px;padding:9px}
+.provenance-panel .source-actions p{flex-basis:100%;margin:0}
