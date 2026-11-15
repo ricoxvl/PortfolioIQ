@@ -13,6 +13,8 @@ from ledger import replay, validate_tx, validate_day, price_at, compute_xirr, ri
 from xray import validate_constituents
 from stressx import compare_presets, shock_result
 from analyst_ai import run_analyst
+from .attribution import attribute_ledger
+from .price_quality import assess_price_history
 
 def to_dashboard(p, holdings):
     obj={'slug':p.id,'name':p.name,'description':p.description,'is_demo':p.is_demo,'cash':p.cash,
@@ -78,7 +80,7 @@ def ledger_dashboard(p,txs, securities, prices):
     insights=[]
     if missing:insights.append({'severity':'warning','title':'Missing prices','description':'Import dated unadjusted price closes for '+', '.join(missing)})
     if twr is None:insights.append({'severity':'info','title':'Insufficient complete history','description':'Flow-adjusted returns require two or more complete daily valuations.'})
-    return {'portfolio':{'id':p.id,'name':p.name,'description':p.description,'is_demo':p.is_demo,'cash':round(cash,2),'ledger_enabled':True},
+    result={'portfolio':{'id':p.id,'name':p.name,'description':p.description,'is_demo':p.is_demo,'cash':round(cash,2),'ledger_enabled':True},
             'data_notice':'Account-isolated transaction ledger; prices are user-provided, not live quotes.',
             'summary':{'total_value':total,'day_change':None,'period_return':twr,'benchmark_return':None,'unrealized_pl':round(priced_total-basis,2) if not missing else None,
                 'cost_basis':round(basis+cash,2),'position_count':len(held),'top_3_concentration':round(concentration,2) if concentration is not None else None,
@@ -90,6 +92,9 @@ def ledger_dashboard(p,txs, securities, prices):
             'methodology':{'return':'End-of-day flow-adjusted TWR and annualized XIRR; no fabricated returns without complete dates.',
                            'risk':'252-session annualization; illustrative 3.5% risk-free rate. No live benchmark.',
                            'pricing':'User-imported unadjusted prices only; record splits/dividends in ledger separately.'}}
+    result['price_quality'] = assess_price_history(transactions,bars,replay=replay,price_at=price_at)
+    result['attribution'] = attribute_ledger(transactions,bars,hist,replay=replay,price_at=price_at)
+    return result
 
 def xray_from_rows(dashboard, fund_rows):
     """Conservative single-level lookthrough; unsupported constituents stay explicitly unknown."""
