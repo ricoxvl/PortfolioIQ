@@ -290,3 +290,27 @@ def test_disabling_research_blocks_all_sec_http_requests(monkeypatch):
     with client,pytest.raises(ValueError,match='disabled'):
         sec.research('AAA','risk factors',client=client,pace=False)
     assert calls == []
+
+
+def test_guided_attribution_uses_reconciled_local_numbers_only():
+    dash={'portfolio':{'is_demo':False},'summary':{'position_count':2},
+          'attribution':{'available':True,'reconciled':True,'return_pct':8.25,
+                          'rows':[{'symbol':'AAA','contribution_pct':9.0,'observed_pnl':90},
+                                  {'symbol':'Account fees','contribution_pct':-0.75,'observed_pnl':-7.5}]},
+          'price_quality':{'available':True,'complete':False,'complete_dates':3,
+                           'valuation_dates':4,'missing_dates':[{'date':'2026-10-04','symbols':['AAA']}]}}
+    a=MOD.guided_answer('What contributed to returns?',dash,{'available':False})
+    assert a['mode']=='guided_calculation' and a['topic']=='attribution'
+    assert '+8.250%' in a['answer'] and 'AAA +9.000 pp' in a['answer']
+    assert any(x['label']=='AAA' for x in a['evidence'])
+    q=MOD.guided_answer('Explain missing price coverage',dash,{'available':False})
+    assert q['topic']=='data_quality' and '3 of 4' in q['answer']
+    assert '2026-10-04' in q['answer'] and 'AAA' in q['answer']
+
+
+def test_guided_mode_never_invents_attribution_for_snapshot():
+    dash={'portfolio':{'is_demo':True},'summary':{'position_count':1}}
+    result=MOD.guided_answer('Who contributed to my returns?',dash,{'available':False})
+    assert result['topic']=='attribution'
+    assert 'unavailable' in result['answer'].lower()
+    assert result['evidence']==[]
