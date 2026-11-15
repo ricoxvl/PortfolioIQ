@@ -44,6 +44,7 @@ def test_create_account_xray_scenario_analyst_and_signout():
 
         page.get_by_role('button', name='Transactions').click()
         page.get_by_placeholder('New portfolio name').fill('E2E ledger')
+        page.get_by_role('combobox', name='Portfolio type').select_option('ledger')
         page.get_by_role('button', name='Create portfolio').click()
         expect(page.get_by_role('heading', name='Record a transaction')).to_be_visible(timeout=10000)
         expect(page.get_by_role('combobox', name='Choose portfolio')).to_contain_text('E2E ledger')
