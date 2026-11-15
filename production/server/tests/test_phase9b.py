@@ -162,6 +162,25 @@ def test_api_requires_explicit_semantic_consent_and_provider_configuration(monke
         assert "embedding provider" in r.text.lower()
         assert _post(c,f"/portfolios/{pid}/analyst",{
             "question":"supplier disruption","use_embeddings":True}).status_code==422
+        # With separately enabled embeddings, only explicit request consent
+        # forwards the setting; no real SEC or OpenAI API call occurs in CI.
+        monkeypatch.setenv("SEC_EMBEDDINGS_ENABLED","true")
+        monkeypatch.setenv("OPENAI_API_KEY","UNIT_TEST_ONLY")
+        assert c.get(f"/api/v4/portfolios/{pid}/research/sec/status").json()["semantic_rerank_enabled"]
+        observed=[]
+        def simulated_research(sym,question,form="10-K",**kw):
+            observed.append({"symbol":sym,"query":question,"kwargs":kw})
+            return {"available":False,"source":"MOCK_SEC","passages":[],
+                    "retrieval_method":"semantic_candidate_rerank" if kw.get("use_embeddings") else "local_bm25"}
+        monkeypatch.setattr(filing_research,"research",simulated_research)
+        basic=_post(c,f"/portfolios/{pid}/research/sec",{
+            "symbol":"AAA","query":"supplier disruption","form":"10-K"})
+        advanced=_post(c,f"/portfolios/{pid}/research/sec",{
+            "symbol":"AAA","query":"supplier disruption","form":"10-K","use_embeddings":True})
+        assert basic.status_code==200 and basic.json()["retrieval_method"]=="local_bm25"
+        assert advanced.status_code==200 and advanced.json()["retrieval_method"]=="semantic_candidate_rerank"
+        assert observed[0]["kwargs"]=={}
+        assert observed[1]["kwargs"]=={"use_embeddings":True}
 
 
 def test_offline_benchmark_has_exactly_180_meaningfully_checked_cases():
