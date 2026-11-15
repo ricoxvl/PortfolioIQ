@@ -24,3 +24,8 @@ To report a security issue after publishing the repository, use GitHub's private
 The API now provides an authenticated JSON export and CSRF/password-confirmed account deletion. Account deletion removes the user and all associated active database rows; this does **not** erase separately held host/database backups. A documented backup retention policy is necessary before real-world deployment.
 
 Production-beta startup requires `BETA_INVITE_CODE` and `BETA_DEMO_ONLY=true`. This blocks creating custom portfolios and importing real financial records during the research pilot. Credentials and API keys must never be committed; local `.env.beta` and database dumps are excluded by `.gitignore`. Live email verification, password recovery, stronger edge abuse controls, and a security audit remain open work.
+
+
+## v0.8 market data boundary
+
+The hosted fictional demo disables benchmark CSV imports, provider syncing, and account-created portfolios. Sourced market data is only available after explicit local configuration or proven public-display rights; API keys remain server-side. All price-series data is validated and tied to the requesting account's portfolio. Provider requests are manually triggered, symbol allowlisted and quota limited. CSV origins remain **USER ATTESTED**, never automatically verified. If adding any external data provider, revisit the license, quota, privacy and service-level security before deployment.
