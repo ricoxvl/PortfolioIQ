@@ -95,6 +95,6 @@ def test_all_preset_scenarios_reconcile_to_starting_value():
 
 def test_public_health_version_tracks_application_release():
     from server.app import app, health
-    assert app.version == '0.9.0'
+    assert app.version == '1.0.0'
     assert health()['version'] == app.version
     assert 'database' in health()

@@ -34,3 +34,8 @@ The hosted fictional demo disables benchmark CSV imports, provider syncing, and 
 ### v0.9 official source access
 
 Only hardcoded ECB-filtered Valuuttakurssi CSV or ECB-filtered Frankfurter JSON, U.S. Treasury official CSV, and its declared public-domain mirror endpoints are requested by server code; no browser-supplied URL or API key. Upstream responses are size-limited, parsed conservatively, and never substituted for real security prices. Results are scoped to authenticated app sessions, and failures show unavailable/stale statuses rather than guessed figures. Issuer links are provided for verification but no issuer holdings are scraped or copied.
+
+
+## v1.0 — Verified data origin, not unlicensed live quotes
+
+PortfolioIQ v1.0 adds a **local-only, opt-in** equity/ETF price connector, unadjusted historical bar auditing, original-format iShares IVV/IWM issuer-file import, and documented publisher-origin verification *only when automated access is separately permitted*. Data Integrity displays per-account source records, freshness, coverage and SHA-256 fingerprints, with correct distinctions among **source verified**, **issuer-format validated / user attested**, and **fictional**. User CSV edits invalidate older source audits. The hosted beta remains strictly **fictional and read-only** and does not acquire or redistribute vendor quotations or BlackRock issuer data. See [Phase 7 genuine data documentation](docs/PHASE7_GENUINE_DATA_PIPELINE.md).

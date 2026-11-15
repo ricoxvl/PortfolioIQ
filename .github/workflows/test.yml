@@ -21,7 +21,7 @@ jobs:
       - run: python -m pip install 'PyYAML>=6,<7'
       - run: python scripts/check_render_blueprint.py
       - run: python -m pytest -q backend/tests
-      - run: python -m pytest -q production/server/tests/test_v4.py production/server/tests/test_hardening.py production/server/tests/test_phase5.py production/server/tests/test_v07.py production/server/tests/test_v08.py production/server/tests/test_official_feeds.py
+      - run: python -m pytest -q production/server/tests/test_v4.py production/server/tests/test_hardening.py production/server/tests/test_phase5.py production/server/tests/test_v07.py production/server/tests/test_v08.py production/server/tests/test_official_feeds.py production/server/tests/test_v10.py
       - run: python -m server.evaluation.evaluate
         working-directory: production
       - name: Verify frozen SQLite schema migrations

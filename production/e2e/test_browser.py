@@ -49,6 +49,10 @@ def test_create_account_xray_scenario_analyst_and_signout():
 
         page.get_by_role('button', name='Market Intelligence').click()
         expect(page.get_by_role('heading', name='Market Intelligence', exact=True)).to_be_visible()
+        expect(page.get_by_role('heading', name='Issuer-verified holdings & authorized prices')).to_be_visible()
+        expect(page.get_by_text('DISABLED IN BETA').first).to_be_visible()
+        expect(page.get_by_text('direct issuer download', exact=False).first).to_be_visible()
+        expect(page.get_by_role('link', name=re.compile('IVV.*BlackRock'))).to_be_visible()
         expect(page.get_by_role('heading', name='Official market reference data')).to_be_visible()
         expect(page.get_by_role('heading', name='EUR/USD · ECB reference rate')).to_be_visible()
         expect(page.get_by_role('heading', name='U.S. Treasury · yield curve')).to_be_visible()
