@@ -158,3 +158,8 @@ The previous **v0.3 application is retained in `backend/` and `frontend/`** and 
 ## Remaining gaps
 
 Verified public cloud deployment, mobile accessibility audit, browser E2E, real PostgreSQL transaction testing, live OpenAI evaluation, real market-data licensing and refresh, full transaction/broker integration, real account deletion, email verification, anti-brute-force rate limits, and operational security review are future steps. This is deliberately labeled a **production-oriented foundation**, not production-certified software.
+
+
+### Phase 6 sourced market benchmark research (v0.8)
+
+Read `../docs/PHASE6_MARKET_INTELLIGENCE.md` for the exact source, licensing, dates, benchmark comparison, and disclosure limitations. The new **Market Intelligence** tab is safe to inspect on the hosted fictional demo, but third-party price fetches remain disabled. For **local development only**, set `MARKET_DATA_ENABLED=true` and your own `TWELVE_DATA_API_KEY`. Never put the key in the repository or expose it in an environment value returned to clients; public redistribution additionally requires approved display rights. The market endpoint never overwrites positions or trade valuations. 
