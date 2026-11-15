@@ -107,6 +107,13 @@ def test_create_account_xray_scenario_analyst_and_signout():
         expect(page.get_by_role('heading', name='Record a transaction')).to_be_visible(timeout=10000)
         expect(page.get_by_role('combobox', name='Choose portfolio')).to_contain_text('E2E ledger')
 
+        # Phase 8 ledger-only integrity views must explain missing history honestly.
+        page.get_by_role('button', name='Overview').click()
+        expect(page.get_by_role('heading', name='Performance attribution')).to_be_visible()
+        expect(page.get_by_role('heading', name='Historical price coverage')).to_be_visible()
+        expect(page.get_by_text('Attribution unavailable:', exact=False)).to_be_visible()
+        expect(page.get_by_text('Record a dated deposit and transactions', exact=False)).to_be_visible()
+
         page.get_by_role('button', name='Sign out').click()
         expect(page.get_by_role('heading', name='Create your workspace')).to_be_visible(timeout=10000)
         assert not errors, 'JavaScript errors: ' + '; '.join(errors)
