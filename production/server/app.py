@@ -27,6 +27,7 @@ from .compute import PARENT
 from . import market
 from . import official_feeds
 from . import verified_data
+from . import filing_research
 
 ASSETS={'Equity','ETF','Fixed Income','Commodity ETF','Cash Equivalent'}
 SYMBOL_RE=re.compile(r'^[A-Z0-9.\-]{1,16}$')
@@ -137,6 +138,14 @@ class Scenario(BaseModel):
 class Question(BaseModel):
     question:str=Field(min_length=3,max_length=1200)
     use_ai:bool=False
+    use_sec_research:bool=False
+    research_symbol:str|None=None
+    research_form:Literal['10-K','10-Q']='10-K'
+
+class SECQuery(BaseModel):
+    symbol:str=Field(min_length=1,max_length=16)
+    query:str=Field(min_length=5,max_length=240)
+    form:Literal['10-K','10-Q']='10-K'
 
 class TransactionIn(BaseModel):
     occurred_on:date
@@ -629,13 +638,50 @@ def sync_market_benchmark(pid:str,symbol:str,user:Account=Depends(csrf_protected
     except ValueError as exc:raise HTTPException(502,str(exc)) from None
     return _store_benchmark(db,p,values,provider_verified=True)
 
+def _held_sec_symbol(dash:dict,symbol:str) -> str:
+    sym=(symbol or '').strip().upper()
+    if not SYMBOL_RE.fullmatch(sym) or not any(
+            h['symbol']==sym and h.get('asset_class')=='Equity' for h in dash['holdings']):
+        raise HTTPException(422,'SEC issuer research requires a held direct equity symbol, not an ETF or unheld issuer')
+    return sym
+
+
+@app.get('/api/v4/portfolios/{pid}/research/sec/status')
+def sec_research_status(pid:str,user:Account=Depends(current_user),db:Session=Depends(database)):
+    owned(db,pid,user)
+    return filing_research.status()
+
+
+@app.post('/api/v4/portfolios/{pid}/research/sec')
+def sec_research(pid:str,body:SECQuery,user:Account=Depends(csrf_protected),db:Session=Depends(database)):
+    """User-initiated extractive EDGAR research. No background crawling or LLM by default."""
+    p=owned(db,pid,user)
+    if p.is_demo:raise HTTPException(422,'SEC filing research is disabled for fictional demo portfolios')
+    if not filing_research.enabled():raise HTTPException(403,'SEC filing research is not enabled in this environment')
+    dash=details(db,p)
+    sym=_held_sec_symbol(dash,body.symbol)
+    try:
+        return filing_research.research(sym,body.query,body.form)
+    except ValueError as exc:
+        raise HTTPException(502,'SEC source unavailable or no supported filing: '+str(exc)) from None
+
+
 @app.post('/api/v4/portfolios/{pid}/analyst')
 def analyst(pid:str,body:Question,user:Account=Depends(csrf_protected),db:Session=Depends(database)):
     p=owned(db,pid,user);dash=details(db,p);xr=xr_details(db,p,dash)
+    if body.use_sec_research and not body.use_ai:
+        raise HTTPException(422,'SEC-assisted AI requires explicit external AI opt-in')
     if body.use_ai:
         if not os.getenv('OPENAI_API_KEY'):raise HTTPException(422,'OPENAI_API_KEY not configured; use guided mode')
+        context=None
+        if body.use_sec_research:
+            if p.is_demo:raise HTTPException(422,'SEC issuer analysis is not available for fictional demo holdings')
+            if not filing_research.enabled():raise HTTPException(403,'SEC research is disabled in this environment')
+            symbol=_held_sec_symbol(dash,body.research_symbol or '')
+            try:context=filing_research.research(symbol,body.question,body.research_form)
+            except ValueError as exc:raise HTTPException(502,'SEC filing research unavailable: '+str(exc)) from None
         comp=compare_presets(xr) if xr.get('available') else []
-        try:return run_analyst(body.question,dash,xr,comp)
+        try:return run_analyst(body.question,dash,xr,comp,research=context)
         except Exception as e:raise HTTPException(502,'AI provider error; use guided mode') from e
     return guided_answer(body.question,dash,xr)
 
