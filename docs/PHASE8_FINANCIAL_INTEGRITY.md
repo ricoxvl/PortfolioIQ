@@ -50,6 +50,12 @@ Coverage uses the **same observed valuation dates** as the ledger engine: transa
 
 Partial history may prevent calculation of period return and position attribution even if a recent portfolio price can be shown. The user sees the first missing date and security tickers to repair their imported data.
 
+### Safer historical closing-price imports
+
+The ledger's `/prices/csv` endpoint remains compatible with `symbol,date,close` CSVs. When files supply optional `adjustment` or `currency` columns, Phase 8 explicitly rejects adjusted closes (including `all`/split-adjusted) and values other than USD before modifying the ledger. Allowed adjustment labels are `none`, `raw`, and `unadjusted`. This guards against mixing adjusted prices with separately recorded dividend and split events. Legacy three-column rows are **assumed user-attested raw USD**, not independently validated as such.
+
+Upload failures leave existing price rows unchanged. The response identifies the unadjusted/USD assumptions and states that source authenticity is unverified. The related integration tests exercise rejected metadata and verify the earlier valid valuation remains intact.
+
 ## API contract
 
 The owner-scoped `GET /api/v4/portfolios/{pid}/overview` adds two optional keys for transaction ledgers:
