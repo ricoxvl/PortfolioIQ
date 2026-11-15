@@ -21,7 +21,7 @@ from server.store import engine
 def test_postgres_migrated_schema_and_private_portfolios():
     assert engine.dialect.name == 'postgresql'
     inspector = inspect(engine)
-    assert {'accounts', 'portfolios', 'transactions', 'prices', 'login_failures'} <= set(inspector.get_table_names())
+    assert {'accounts', 'portfolios', 'transactions', 'prices', 'login_failures', 'market_benchmark_bars', 'market_fetch_attempts'} <= set(inspector.get_table_names())
     with TestClient(app) as alice, TestClient(app) as bob:
         for client in (alice, bob):
             response = client.post('/api/v4/auth/register', json={
@@ -29,6 +29,8 @@ def test_postgres_migrated_schema_and_private_portfolios():
             assert response.status_code == 201, response.text
         pid = alice.get('/api/v4/portfolios').json()[0]['id']
         assert alice.get(f'/api/v4/portfolios/{pid}/overview').status_code == 200
+        assert alice.get(f'/api/v4/portfolios/{pid}/market').status_code == 200
+        assert bob.get(f'/api/v4/portfolios/{pid}/market').status_code == 404
         assert bob.get(f'/api/v4/portfolios/{pid}/overview').status_code == 404
         headers = {'X-CSRF-Token': alice.cookies['piq_csrf']}
         resp = alice.post('/api/v4/portfolios', json={'name': 'PG ledger', 'kind': 'ledger'}, headers=headers)

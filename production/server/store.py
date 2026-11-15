@@ -105,3 +105,23 @@ class LoginFailure(Base):
     ip_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False, index=True)
     __table_args__ = (Index('ix_login_failures_ip_when', 'ip_hash', 'occurred_at'),)
+
+
+class MarketBar(Base):
+    """Account-isolated benchmark close observations, never a holding valuation feed."""
+    __tablename__='market_benchmark_bars'
+    portfolio_id: Mapped[str] = mapped_column(ForeignKey('portfolios.id',ondelete='CASCADE'),primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16),primary_key=True)
+    trading_day: Mapped[datetime] = mapped_column(Date,primary_key=True)
+    close: Mapped[float] = mapped_column(Float,nullable=False)
+    source: Mapped[str] = mapped_column(String(180),nullable=False)
+    adjustment: Mapped[str] = mapped_column(String(10),nullable=False)
+    imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),default=now,nullable=False)
+
+
+class MarketFetchAttempt(Base):
+    """Quota guard without storing request credentials or user IPs."""
+    __tablename__='market_fetch_attempts'
+    id: Mapped[int] = mapped_column(Integer,primary_key=True,autoincrement=True)
+    account_id: Mapped[str] = mapped_column(ForeignKey('accounts.id',ondelete='CASCADE'),index=True,nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),default=now,nullable=False,index=True)
