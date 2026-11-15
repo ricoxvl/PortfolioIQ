@@ -39,7 +39,9 @@ Help individual investors distinguish capital contributions from investment retu
 - [ ] Instrument-level covariance risk models, out-of-sample optimization evaluation, and independent quantitative validation.
 - [ ] Explainable performance attribution using appropriate total-return benchmarks.
 - [ ] SEC filing retrieval and citations; independent LLM numerical and citation evaluations.
-- [ ] Configurable alerts and polished PDF/CSV reports.
+- [x] Authenticated account-scoped PDF/CSV portfolio reports with provenance and missing-data safeguards.
+- [x] Saved, on-demand threshold alerts with tenant isolation, finite rules and explicit unavailable states.
+- [ ] Genuine scheduled alert delivery, market-monitoring contracts and independently verified brokerage statements.
 
 ## Phase 4 — Production readiness
 
