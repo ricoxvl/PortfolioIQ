@@ -79,8 +79,15 @@ def evaluate(rule: object, dashboard: dict, *, at: datetime | None = None) -> di
     observed = None
     explanation = ""
     summ = dashboard.get("summary") or {}
+    # An untouched empty snapshot computes to $0, but that is not an observed
+    # funded/marked investment valuation. Avoid a misleading "value fell" alert.
+    empty_unfunded = (
+        not dashboard.get("holdings")
+        and not (dashboard.get("history") or [])
+        and float((dashboard.get("portfolio") or {}).get("cash") or 0) == 0
+    )
     if kind == "portfolio_value_below":
-        observed = summ.get("total_value")
+        observed = None if empty_unfunded else summ.get("total_value")
         source = "Current computed portfolio valuation"
         explanation = "Triggered if reported current total is strictly below threshold."
     elif kind == "top_three_concentration_above":
