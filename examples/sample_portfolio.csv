@@ -1,0 +1,5 @@
+symbol,name,sector,asset_class,quantity,avg_cost,current_price
+ACME,Acme Software,Technology,Equity,30,82.5,105.25
+BETA,Beta Consumer Products,Consumer Staples,Equity,55,41.5,46.80
+CORE,Core Broad Market ETF,Broad Market ETF,ETF,72,96.0,112.15
+BOND,Example Bond Fund,Fixed Income,Fixed Income,100,74.5,75.30

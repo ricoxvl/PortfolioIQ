@@ -1,0 +1,7 @@
+occurred_on,kind,symbol,quantity,unit_price,amount,name,sector,asset_class,memo
+2026-05-01,DEPOSIT,,0,0,20000,,,,Initial deposit
+2026-05-01,BUY,LUMA,50,120,0,Luma Networks (fictional),Technology,Equity,Fictional demo example
+2026-05-01,BUY,STBL,100,80,0,Stable Bond Fund (fictional),Fixed Income,Fixed Income,Fictional demo example
+2026-06-01,DIVIDEND,STBL,0,0,35,,,,Fictional dividend
+2026-07-01,DEPOSIT,,0,0,2000,,,,Second contribution
+2026-07-01,BUY,LUMA,10,130,0,,,,Buy more shares

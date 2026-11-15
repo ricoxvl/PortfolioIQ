@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0c1116" />
+  <meta name="description" content="PortfolioIQ — portfolio intelligence, ETF overlap, sourced holdings, stress testing and opt-in AI." />
+  <title>PortfolioIQ — Investment Intelligence</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><div class="brand-symbol"><span></span><span></span><span></span></div><div class="brand-name">portfolio<span>IQ</span><small>INVESTMENT INTELLIGENCE</small></div></div>
+    <div class="side-section-label">WORKSPACE</div>
+    <nav class="main-nav" aria-label="Main navigation" id="mainNav">
+      <button class="nav-item active" data-view="overview"><span class="nav-icon" data-icon="layout"></span><span>Overview</span></button>
+      <button class="nav-item" data-view="holdings"><span class="nav-icon" data-icon="briefcase"></span><span>Holdings</span></button>
+      <button class="nav-item" data-view="xray"><span class="nav-icon" data-icon="layers"></span><span>Portfolio X-Ray</span></button>
+      <button class="nav-item" data-view="ledger"><span class="nav-icon" data-icon="coins"></span><span>Transactions & prices</span></button>
+      <button class="nav-item" data-view="risk"><span class="nav-icon" data-icon="activity"></span><span>Risk intelligence</span></button>
+      <button class="nav-item" data-view="scenarios"><span class="nav-icon" data-icon="sliders"></span><span>Scenario studio</span></button>
+      <button class="nav-item" data-view="analyst"><span class="nav-icon" data-icon="sparkles"></span><span>IQ analyst</span><span class="nav-spark"></span></button>
+    </nav>
+    <div class="side-section-label resources-label">RESOURCES</div>
+    <nav class="main-nav"><button class="nav-item" data-view="methodology"><span class="nav-icon" data-icon="book"></span><span>Methodology</span></button></nav>
+    <div class="side-bottom">
+      <div class="local-card"><div class="local-dot"></div><div><b>Local demo environment</b><p>No live brokerage connection</p></div></div>
+      <div class="profile"><div class="avatar">IQ</div><div class="profile-info"><b>Demo Workspace</b><span>Research edition · v0.3</span></div><span class="tiny-chevron">⌄</span></div>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <button class="mobile-menu icon-btn" id="mobileMenu" aria-label="Toggle navigation">☰</button>
+      <div class="breadcrumb"><span>Workspace</span><span class="breadcrumb-slash">/</span><strong id="currentBreadcrumb">Overview</strong></div>
+      <div class="top-right"><span class="environment-pill"><i></i> LOCAL / SOURCE LABELED</span><span class="top-separator"></span><button class="icon-btn" id="aboutButton" title="Data and methodology" aria-label="About this data"><span data-icon="info"></span></button><div class="top-avatar">IQ</div></div>
+    </header>
+    <div class="content" id="content"><div class="initial-loading"><div class="loading-ring"></div><p>Preparing investment intelligence...</p></div></div>
+    <footer class="app-footer"><span>PortfolioIQ Research Edition · Demo data is synthetic · imported/provider data explicitly sourced · No investment advice</span><span>Built with Python + FastAPI</span></footer>
+  </main>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="/static/app.js" defer></script>
+</body>
+</html>

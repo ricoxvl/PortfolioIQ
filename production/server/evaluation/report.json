@@ -1,0 +1,467 @@
+{
+  "evaluated": 36,
+  "passing": 36,
+  "failing": 0,
+  "scope": "offline guided analyst contract; no live external LLM evaluated",
+  "cases": [
+    {
+      "fixture": "fictional-growth",
+      "category": "performance_available",
+      "question": "Explain my portfolio return",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "calculated_return": true
+      }
+    },
+    {
+      "fixture": "fictional-growth",
+      "category": "performance_available",
+      "question": "How did the portfolio perform?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "calculated_return": true
+      }
+    },
+    {
+      "fixture": "fictional-growth",
+      "category": "risk_available",
+      "question": "Explain portfolio volatility",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "computed_volatility": true
+      }
+    },
+    {
+      "fixture": "fictional-growth",
+      "category": "risk_available",
+      "question": "What is the current risk?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "computed_volatility": true
+      }
+    },
+    {
+      "fixture": "fictional-growth",
+      "category": "xray",
+      "question": "Is my ETF portfolio overlapping?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "overlap_count": true
+      }
+    },
+    {
+      "fixture": "fictional-growth",
+      "category": "xray",
+      "question": "Analyze my constituent exposure",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "overlap_count": true
+      }
+    },
+    {
+      "fixture": "fictional-growth",
+      "category": "overview",
+      "question": "What holdings do I own?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true
+      }
+    },
+    {
+      "fixture": "fictional-growth",
+      "category": "overview",
+      "question": "Summarize my portfolio",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true
+      }
+    },
+    {
+      "fixture": "fictional-growth",
+      "category": "performance_available",
+      "question": "Compare the return",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "calculated_return": true
+      }
+    },
+    {
+      "fixture": "fictional-growth",
+      "category": "risk_available",
+      "question": "Discuss risk and drawdown",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "computed_volatility": true
+      }
+    },
+    {
+      "fixture": "fictional-growth",
+      "category": "xray",
+      "question": "Which ETFs overlap?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "overlap_count": true
+      }
+    },
+    {
+      "fixture": "fictional-growth",
+      "category": "overview",
+      "question": "Help me understand this account",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true
+      }
+    },
+    {
+      "fixture": "user-imported-snapshot",
+      "category": "performance_unavailable",
+      "question": "Explain portfolio return",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "no_made_up_return": true
+      }
+    },
+    {
+      "fixture": "user-imported-snapshot",
+      "category": "performance_unavailable",
+      "question": "How has it performed?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "no_made_up_return": true
+      }
+    },
+    {
+      "fixture": "user-imported-snapshot",
+      "category": "risk_unavailable",
+      "question": "What is the annualized volatility?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "no_made_up_volatility": true
+      }
+    },
+    {
+      "fixture": "user-imported-snapshot",
+      "category": "risk_unavailable",
+      "question": "Calculate my drawdown and risk",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "no_made_up_volatility": true
+      }
+    },
+    {
+      "fixture": "user-imported-snapshot",
+      "category": "xray",
+      "question": "Do my ETFs overlap?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "overlap_count": true
+      }
+    },
+    {
+      "fixture": "user-imported-snapshot",
+      "category": "xray",
+      "question": "What sectors are in my ETFs?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "overlap_count": true
+      }
+    },
+    {
+      "fixture": "user-imported-snapshot",
+      "category": "overview",
+      "question": "What is the account value?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true
+      }
+    },
+    {
+      "fixture": "user-imported-snapshot",
+      "category": "overview",
+      "question": "Summarize my portfolio",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true
+      }
+    },
+    {
+      "fixture": "user-imported-snapshot",
+      "category": "performance_unavailable",
+      "question": "Explain benchmark performance",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "no_made_up_return": true
+      }
+    },
+    {
+      "fixture": "user-imported-snapshot",
+      "category": "risk_unavailable",
+      "question": "Tell me the Sharpe ratio",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "no_made_up_volatility": true
+      }
+    },
+    {
+      "fixture": "user-imported-snapshot",
+      "category": "xray",
+      "question": "Is this too concentrated?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "overlap_count": true
+      }
+    },
+    {
+      "fixture": "user-imported-snapshot",
+      "category": "overview",
+      "question": "Analyze my investment holdings",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true
+      }
+    },
+    {
+      "fixture": "user-imported-partial-etf",
+      "category": "performance_unavailable",
+      "question": "Explain portfolio return",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "no_made_up_return": true
+      }
+    },
+    {
+      "fixture": "user-imported-partial-etf",
+      "category": "performance_unavailable",
+      "question": "How has it performed?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "no_made_up_return": true
+      }
+    },
+    {
+      "fixture": "user-imported-partial-etf",
+      "category": "risk_unavailable",
+      "question": "What is the annualized volatility?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "no_made_up_volatility": true
+      }
+    },
+    {
+      "fixture": "user-imported-partial-etf",
+      "category": "risk_unavailable",
+      "question": "Calculate my drawdown and risk",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "no_made_up_volatility": true
+      }
+    },
+    {
+      "fixture": "user-imported-partial-etf",
+      "category": "xray",
+      "question": "Do my ETFs overlap?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "overlap_count": true
+      }
+    },
+    {
+      "fixture": "user-imported-partial-etf",
+      "category": "xray",
+      "question": "What sectors are in my ETFs?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "overlap_count": true
+      }
+    },
+    {
+      "fixture": "user-imported-partial-etf",
+      "category": "overview",
+      "question": "What is the account value?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true
+      }
+    },
+    {
+      "fixture": "user-imported-partial-etf",
+      "category": "overview",
+      "question": "Summarize my portfolio",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true
+      }
+    },
+    {
+      "fixture": "user-imported-partial-etf",
+      "category": "performance_unavailable",
+      "question": "Explain benchmark performance",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "no_made_up_return": true
+      }
+    },
+    {
+      "fixture": "user-imported-partial-etf",
+      "category": "risk_unavailable",
+      "question": "Tell me the Sharpe ratio",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "no_made_up_volatility": true
+      }
+    },
+    {
+      "fixture": "user-imported-partial-etf",
+      "category": "xray",
+      "question": "Is this too concentrated?",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true,
+        "overlap_count": true
+      }
+    },
+    {
+      "fixture": "user-imported-partial-etf",
+      "category": "overview",
+      "question": "Analyze my investment holdings",
+      "passed": true,
+      "checks": {
+        "guided_not_llm": true,
+        "has_local_source": true,
+        "not_blank": true,
+        "no_trade_execution": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: portfolioiq
+      POSTGRES_USER: portfolioiq
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a strong POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portfolioiq -d portfolioiq"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+  app:
+    build:
+      context: ..
+      dockerfile: production/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://portfolioiq:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/portfolioiq
+      COOKIE_SECURE: "false"  # localhost HTTP ONLY; use true with HTTPS ingress
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request;urllib.request.urlopen(\"http://127.0.0.1:8000/api/v4/health\")'"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+volumes:
+  postgres_data:
