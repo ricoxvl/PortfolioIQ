@@ -51,7 +51,7 @@ type DataIntegrity = {portfolio_id:string;demo_only:boolean;issuer_sync_allowed:
  rights_notice:string;account_notice:string};
 type Tab = 'Overview'|'Holdings'|'Portfolio X-Ray'|'Risk Intelligence'|'Scenario Studio'|'Portfolio Lab'|'Market Intelligence'|'Reports & Alerts'|'Transactions'|'IQ Analyst'|'Methodology'|'Settings';
 const tabs:Tab[]=['Overview','Holdings','Portfolio X-Ray','Risk Intelligence','Scenario Studio','Portfolio Lab','Market Intelligence','Reports & Alerts','Transactions','IQ Analyst','Methodology','Settings'];
-const icons=['◫','▣','◎','⌁','◈','▦','◉','▤','⇄','✧','ⓘ','⚙','⬡'];
+const icons=['◫','▣','◎','⌁','◈','▦','◉','▤','⇄','✧','ⓘ','⚙'];
 const money=(x:number|null|undefined)=>x==null?'—':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(x);
 const n=(x:number|null|undefined,dp=2)=>x==null?'—':new Intl.NumberFormat('en-US',{maximumFractionDigits:dp}).format(x);
 const perc=(x:number|null|undefined)=>x==null?'—':`${x>=0?'+':''}${n(x)}%`;
