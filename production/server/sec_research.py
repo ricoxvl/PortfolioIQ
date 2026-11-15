@@ -20,7 +20,7 @@ import httpx
 
 _ALLOWED_FORMS = {"10-K", "10-Q"}
 _CIK = re.compile(r"^[0-9]{1,10}$")
-_DOCUMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\\.(?:htm|html|txt)$", re.I)
+_DOCUMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\.(?:htm|html|txt)$", re.I)
 _ACCESSION = re.compile(r"^[0-9]{10}-[0-9]{2}-[0-9]{6}$")
 _WORD = re.compile(r"[a-zA-Z]{4,}")
 _MAX_SUBMISSIONS = 2_500_000
