@@ -701,7 +701,41 @@ def guided_answer(question,dash,xr):
     sources=[{'label':'Portfolio overview','detail':'Calculated from this account-scoped portfolio'}]
     topic='overview'
 
-    if any(k in q for k in ('overlap','etf','sector','concentrat','diversif','exposure','underlying')):
+    if any(k in q for k in ('attribution','contributor','contributed','return contribution','performance driver')):
+        topic='attribution'
+        a=dash.get('attribution') or {}
+        sources.append({'label':'Ledger attribution','detail':'Phase 8 chain-linked return contributions, not benchmark-relative attribution'})
+        if not a.get('available') or not a.get('reconciled'):
+            answer='Security-level performance attribution is unavailable for this portfolio. '+a.get(
+                'reason','A complete dated transaction ledger and reconciled price history are required.')+' No holding contribution has been estimated. '+notices
+        else:
+            ranked=a.get('rows',[])[:5]
+            evidence=[{'label':x['symbol'],'value':f"{x['contribution_pct']:+.3f} percentage points",
+                       'detail':f"Sum of observed daily P/L: ${x['observed_pnl']:,.2f}"} for x in ranked]
+            details='; '.join(f"{x['symbol']} {x['contribution_pct']:+.3f} pp" for x in ranked)
+            answer=(f"Reconciled chain-linked portfolio return is {a['return_pct']:+.3f}%. "
+                    f"Largest measured contributions: {details or 'none'}. "
+                    'External deposits and withdrawals are excluded. These are security contributions '
+                    'to portfolio TWR, not a benchmark-relative allocation/selection analysis. '+notices)
+    elif any(k in q for k in ('price coverage','missing price','data quality','source freshness','stale price','incomplete history')):
+        topic='data_quality'
+        coverage=dash.get('price_quality') or {}
+        sources.append({'label':'Historical price coverage','detail':'Imported raw price observation dates and seven-calendar-day valuation rules'})
+        if not coverage.get('available'):
+            answer='Historical price-data coverage is unavailable. '+coverage.get(
+                'reason','A dated transaction ledger is required.')+' No prices have been inferred. '+notices
+        else:
+            good=coverage.get('complete_dates',0)
+            total=coverage.get('valuation_dates',0)
+            missing=coverage.get('missing_dates') or []
+            first=missing[0] if missing else None
+            evidence.append({'label':'Complete valuation dates','value':f'{good}/{total}',
+                             'detail':'Observed dates only, not all market sessions'})
+            answer=(f'Usable closing prices exist on {good} of {total} observed ledger valuation dates. '
+                    +(f"First incomplete valuation: {first['date']}, missing {', '.join(first['symbols'])}. " if first else
+                      'No missing prices on observed ledger dates. ')
+                    +'Raw closing-price labels are user-attested, not independently verified. '+notices)
+    elif any(k in q for k in ('overlap','etf','sector','concentrat','diversif','exposure','underlying')):
         topic='xray'
         sources.append({'label':'Portfolio X-Ray','detail':'One-level, dated constituent look-through with unmapped exposure preserved'})
         if not available:
