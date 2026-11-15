@@ -25,6 +25,7 @@ from .compute import (to_dashboard, ledger_dashboard, xray_from_rows, validate_c
                       validate_tx, replay, validate_day, shock_result, compare_presets, run_analyst)
 from .compute import PARENT
 from . import market
+from . import official_feeds
 
 ASSETS={'Equity','ETF','Fixed Income','Commodity ETF','Cash Equivalent'}
 SYMBOL_RE=re.compile(r'^[A-Z0-9.\-]{1,16}$')
@@ -52,7 +53,7 @@ async def lifespan(app:FastAPI):
     store.init()
     yield
 
-app=FastAPI(title='PortfolioIQ Secure API',version='0.8.0',lifespan=lifespan,
+app=FastAPI(title='PortfolioIQ Secure API',version='0.9.0',lifespan=lifespan,
             description='Account-isolated, educational investment analytics. No trade execution.')
 
 # Reject unexpected Host headers. Configure an explicit domain before deploying.
@@ -407,6 +408,11 @@ async def price_csv(pid:str,file:UploadFile=File(...),user:Account=Depends(csrf_
     return {'imported':len(parsed),'source':'user_csv'}
 
 
+
+@app.get('/api/v4/market/official')
+def official_market_references(user:Account=Depends(current_user)):
+    """Account-scoped access to official/public macro reference data, not prices."""
+    return official_feeds.official_reference_snapshot()
 
 @app.get('/api/v4/portfolios/{pid}/market')
 def market_research(pid:str, symbol:str='SPY',user:Account=Depends(current_user),db:Session=Depends(database)):

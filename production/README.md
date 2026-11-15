@@ -163,3 +163,8 @@ Verified public cloud deployment, mobile accessibility audit, browser E2E, real 
 ### Phase 6 sourced market benchmark research (v0.8)
 
 Read `../docs/PHASE6_MARKET_INTELLIGENCE.md` for the exact source, licensing, dates, benchmark comparison, and disclosure limitations. The new **Market Intelligence** tab is safe to inspect on the hosted fictional demo, but third-party price fetches remain disabled. For **local development only**, set `MARKET_DATA_ENABLED=true` and your own `TWELVE_DATA_API_KEY`. Never put the key in the repository or expose it in an environment value returned to clients; public redistribution additionally requires approved display rights. The market endpoint never overwrites positions or trade valuations. 
+
+
+### Official macro reference feeds (v0.9)
+
+Authenticated GET `/api/v4/market/official` fetches ECB-provider-filtered JSON through Valuuttakurssi or the Frankfurter fallback and Treasury nominal par-yield CSV from the Treasury or a transparently labeled public-domain mirror. At most one request per feed per process every 6 hours; no secrets or credentials, no redirects, bounded parser, explicit attribution, original source links, and visible unavailable/stale cache states. Published datasets are **not** ETF prices, holdings data, portfolio return benchmarks, or a replacement for a vendor license. Historical company-specific prices remain disabled in the public beta. No additional Render resources or schema migration.

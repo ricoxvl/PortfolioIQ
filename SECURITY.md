@@ -29,3 +29,8 @@ Production-beta startup requires `BETA_INVITE_CODE` and `BETA_DEMO_ONLY=true`. T
 ## v0.8 market data boundary
 
 The hosted fictional demo disables benchmark CSV imports, provider syncing, and account-created portfolios. Sourced market data is only available after explicit local configuration or proven public-display rights; API keys remain server-side. All price-series data is validated and tied to the requesting account's portfolio. Provider requests are manually triggered, symbol allowlisted and quota limited. CSV origins remain **USER ATTESTED**, never automatically verified. If adding any external data provider, revisit the license, quota, privacy and service-level security before deployment.
+
+
+### v0.9 official source access
+
+Only hardcoded ECB-filtered Valuuttakurssi CSV or ECB-filtered Frankfurter JSON, U.S. Treasury official CSV, and its declared public-domain mirror endpoints are requested by server code; no browser-supplied URL or API key. Upstream responses are size-limited, parsed conservatively, and never substituted for real security prices. Results are scoped to authenticated app sessions, and failures show unavailable/stale statuses rather than guessed figures. Issuer links are provided for verification but no issuer holdings are scraped or copied.
