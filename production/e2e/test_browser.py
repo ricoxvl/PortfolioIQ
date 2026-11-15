@@ -93,6 +93,24 @@ def test_create_account_xray_scenario_analyst_and_signout():
         expect(page.get_by_text('Custom exposure stress')).to_be_visible()
         expect(page.get_by_role('cell', name='-30%')).to_be_visible()
 
+        # Phase 10 portfolio research must remain a read-only, explicitly
+        # fictional resampling and constrained allocation workflow.
+        page.get_by_role('button', name='Portfolio Lab').click()
+        expect(page.get_by_role('heading', name='Monte Carlo return-path explorer')).to_be_visible()
+        expect(page.get_by_role('heading', name='Allocation & rebalance planner')).to_be_visible()
+        page.get_by_role('combobox', name='Monte Carlo horizon').select_option('21')
+        page.get_by_role('combobox', name='Monte Carlo path count').select_option('250')
+        page.get_by_role('button', name='Run illustrative simulation').click()
+        expect(page.get_by_text('5th-percentile ending value', exact=True)).to_be_visible(timeout=15000)
+        expect(page.get_by_text('FICTIONAL RESAMPLING', exact=False).first).to_be_visible()
+        expect(page.get_by_role('img', name=re.compile('Illustrative five to ninety-five percentile'))).to_be_visible()
+        page.get_by_role('spinbutton', name='Max turnover percent').fill('100')
+        page.get_by_role('button', name='Preview allocation (no orders)').click()
+        expect(page.get_by_role('table', name='Hypothetical rebalance target comparison')).to_be_visible(timeout=15000)
+        expect(page.get_by_text('Gross illustrative trading')).to_be_visible()
+        page.get_by_role('combobox', name='Allocation strategy').select_option('custom')
+        expect(page.get_by_text('Target weights total:', exact=False)).to_be_visible()
+
         page.get_by_role('button', name='IQ Analyst').click()
         expect(page.get_by_role('heading', name='IQ Analyst', exact=True)).to_be_visible()
         expect(page.get_by_role('heading', name='SEC filing research')).to_be_visible()
