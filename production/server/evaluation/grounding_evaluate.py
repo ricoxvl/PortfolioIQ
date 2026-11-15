@@ -6,7 +6,7 @@ measurement, model accuracy rate, or independent investment fact audit.
 from __future__ import annotations
 import json
 from pathlib import Path
-from ... import app as _app  # Ensure production/backend path is configured.
+from .. import app as _app  # Ensure production/backend path is configured.
 from analyst_ai import validate_grounded_text
 
 OUT=Path(__file__).parent/'grounding_report.json'
