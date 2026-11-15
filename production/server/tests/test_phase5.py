@@ -140,3 +140,26 @@ def test_production_requires_an_invite_and_demo_only_flag(monkeypatch):
     monkeypatch.delenv('BETA_DEMO_ONLY',raising=False)
     with pytest.raises(RuntimeError,match='BETA_DEMO_ONLY'):
         with TestClient(app):pass
+
+
+def test_readiness_and_robots_for_demo_beta(monkeypatch):
+    monkeypatch.setenv('BETA_DEMO_ONLY', 'true')
+    with TestClient(app) as c:
+        ready = c.get('/api/v4/ready')
+        assert ready.status_code == 200, ready.text
+        assert ready.json() == {'status': 'ready'}
+        robots = c.get('/robots.txt')
+        assert robots.status_code == 200
+        assert 'Disallow: /' in robots.text
+        assert robots.headers['x-robots-tag'] == 'noindex, nofollow, noarchive'
+        assert ready.headers['x-robots-tag'] == 'noindex, nofollow, noarchive'
+
+
+def test_render_blueprint_is_invitation_only_and_demo_only():
+    doc = (Path(__file__).resolve().parents[3] / 'render.yaml').read_text()
+    assert 'BETA_DEMO_ONLY' in doc and 'value: "true"' in doc
+    assert 'BETA_INVITE_CODE' in doc and doc.count('generateValue: true') >= 2
+    assert 'healthCheckPath: /api/v4/ready' in doc
+    assert 'RENDER_EXTERNAL_HOSTNAME' in doc
+    assert 'ipAllowList: []' in doc
+    assert 'OPENAI_API_KEY' not in doc
