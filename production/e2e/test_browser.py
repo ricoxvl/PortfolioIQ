@@ -101,7 +101,7 @@ def test_create_account_xray_scenario_analyst_and_signout():
         page.get_by_role('combobox', name='Monte Carlo horizon').select_option('21')
         page.get_by_role('combobox', name='Monte Carlo path count').select_option('250')
         page.get_by_role('button', name='Run illustrative simulation').click()
-        expect(page.get_by_text('5th-percentile ending value')).to_be_visible(timeout=15000)
+        expect(page.get_by_text('5th-percentile ending value', exact=True)).to_be_visible(timeout=15000)
         expect(page.get_by_text('FICTIONAL RESAMPLING', exact=False).first).to_be_visible()
         expect(page.get_by_role('img', name=re.compile('Illustrative five to ninety-five percentile'))).to_be_visible()
         page.get_by_role('spinbutton', name='Max turnover percent').fill('100')
