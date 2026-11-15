@@ -58,3 +58,20 @@ details[open] summary { margin-bottom:10px; }
 .evidence-item details { border-top:1px solid #345848; margin-top:11px; padding-top:10px; }
 .evidence-item details summary { font-size:11px; }
 @media(max-width:790px) { .comparison-row { align-items:start; flex-direction:column; } .fund-grid { grid-template-columns:1fr; } .coverage-legend { gap:8px 16px; } .accordion-grid { grid-template-columns:1fr; } }
+
+/* v0.8 · Real-data provenance and benchmark integrity. */
+.market-intelligence { display:grid; gap:20px; }
+.market-note { padding:15px; border:1px solid #396356; border-radius:10px; background:#152a26; font-size:12px; color:#cce1d9; line-height:1.75; margin:15px 0; }
+.market-note p { margin:7px 0 0; color:#a9c0b9; }
+.market-detail-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:16px 0; }
+.market-detail-grid>div { display:flex; flex-direction:column; gap:5px; min-width:0; border:1px solid #2b4248; border-radius:9px; padding:12px; }
+.market-detail-grid span { color:#91aaa9; font-size:11px; }
+.market-detail-grid b { overflow-wrap:anywhere; font-size:13px; color:#e3efe7; }
+.audit-steps { display:grid; gap:11px; margin:24px 0; }
+.audit-steps>div { display:grid; grid-template-columns:30px 1fr; gap:3px 8px; padding:12px 0; border-bottom:1px solid #283c42; }
+.audit-steps b { grid-row:span 2; color:#a7e7c3; font-size:12px; }
+.audit-steps span { color:#e4f0ea; font-weight:700; font-size:12px; }
+.audit-steps small { color:#a0b8b6; font-size:11px; line-height:1.5; }
+.data-warning { border-left:3px solid #e8b678; padding:10px 13px; background:#302923; color:#f6d3a5; font-size:12px; }
+.market-intelligence .fund-card .chip { font-size:9px; }
+@media(max-width:760px) {.market-detail-grid {grid-template-columns:1fr;}}
