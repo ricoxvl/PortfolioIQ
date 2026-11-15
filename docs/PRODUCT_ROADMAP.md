@@ -34,7 +34,9 @@ Help individual investors distinguish capital contributions from investment retu
 - [x] Optional, explicitly consented read-only LLM tool calls via Responses API (mocked SDK integration test; live key test pending).
 - [ ] True real-provider/live LLM validation, numerical/citation evaluation against independent reference sets.
 - [ ] Licensed scheduled ETF constituent feeds and recursively handled fund-of-funds.
-- [ ] Monte Carlo with clearly described distributions, calibration, confidence ranges and evaluations.
+- [x] Seeded, bounded empirical block-bootstrap Monte Carlo with source/quality gates, hypothetical percentile bands and fictional reference tests (not calibrated future confidence intervals).
+- [x] Read-only constrained equal-weight and custom rebalancing previews with turnover, position and cash caps.
+- [ ] Instrument-level covariance risk models, out-of-sample optimization evaluation, and independent quantitative validation.
 - [ ] Explainable performance attribution using appropriate total-return benchmarks.
 - [ ] SEC filing retrieval and citations; independent LLM numerical and citation evaluations.
 - [ ] Configurable alerts and polished PDF/CSV reports.
