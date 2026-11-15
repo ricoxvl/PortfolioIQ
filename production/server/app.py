@@ -28,6 +28,7 @@ from . import market
 from . import official_feeds
 from . import verified_data
 from . import filing_research
+from . import monte_carlo, rebalancing
 
 ASSETS={'Equity','ETF','Fixed Income','Commodity ETF','Cash Equivalent'}
 SYMBOL_RE=re.compile(r'^[A-Z0-9.\-]{1,16}$')
@@ -89,7 +90,7 @@ def health():
             'data_notice':'Synthetic demo or explicitly imported holdings; no live broker data.',
             'invitation_required':bool(os.getenv('BETA_INVITE_CODE')),
             'demo_only':os.getenv('BETA_DEMO_ONLY','false').lower()=='true',
-            'capabilities':['auth','owner_scoped_portfolios','ledger','price_csv','fund_constituents','xray','stress','ai_evaluation','private_beta_invites','account_export','account_deletion','sourced_benchmark_research','fund_disclosure_audit','issuer_direct_source_verification','licensed_local_security_prices']}
+            'capabilities':['auth','owner_scoped_portfolios','ledger','price_csv','fund_constituents','xray','stress','ai_evaluation','private_beta_invites','account_export','account_deletion','sourced_benchmark_research','fund_disclosure_audit','issuer_direct_source_verification','licensed_local_security_prices','historical_bootstrap_research','read_only_rebalance_planner']}
 
 @app.get('/api/v4/ready')
 def readiness(db: Session = Depends(database)):
@@ -134,6 +135,18 @@ class Scenario(BaseModel):
     preset: Literal['equity_selloff','technology_slump','rates_shock','recovery','custom']='technology_slump'
     default_pct:float|None=None
     sector_shocks:dict[str,float]=Field(default_factory=dict)
+
+class MonteCarloRequest(BaseModel):
+    horizon_sessions:Literal[21,63,126,252]=63
+    paths:Literal[250,500,1000,2000]=500
+    seed:int=Field(default=1007,ge=0,le=4294967295)
+
+class RebalanceRequest(BaseModel):
+    mode:Literal['diversify','custom']='diversify'
+    targets_pct:dict[str,float]|None=None
+    max_position_pct:float=Field(default=100,ge=1,le=100)
+    min_cash_pct:float=Field(default=0,ge=0,le=100)
+    max_turnover_pct:float=Field(default=100,ge=0,le=100)
 
 class Question(BaseModel):
     question:str=Field(min_length=3,max_length=1200)
@@ -319,6 +332,28 @@ def stress(pid:str,body:Scenario,user:Account=Depends(csrf_protected),db:Session
     xr=xr_details(db,owned(db,pid,user))
     try:return shock_result(xr,preset=body.preset,custom=body.sector_shocks,default_pct=body.default_pct)
     except ValueError as e:raise HTTPException(422,str(e))
+
+@app.post('/api/v4/portfolios/{pid}/simulation/monte-carlo')
+def simulate_portfolio(pid:str,body:MonteCarloRequest,user:Account=Depends(csrf_protected),db:Session=Depends(database)):
+    """Bounded, reproducible, read-only historical-resampling research."""
+    dash=details(db,owned(db,pid,user))
+    try:
+        return monte_carlo.simulate(dash,horizon_sessions=body.horizon_sessions,
+                                    paths=body.paths,seed=body.seed)
+    except ValueError as exc:
+        raise HTTPException(422,str(exc)) from None
+
+@app.post('/api/v4/portfolios/{pid}/rebalance/preview')
+def rebalance_preview(pid:str,body:RebalanceRequest,user:Account=Depends(csrf_protected),db:Session=Depends(database)):
+    """Preview target allocations. No brokerage interaction or database edits."""
+    dash=details(db,owned(db,pid,user))
+    try:
+        return rebalancing.preview(dash,mode=body.mode,targets_pct=body.targets_pct,
+                                   max_position_pct=body.max_position_pct,
+                                   min_cash_pct=body.min_cash_pct,
+                                   max_turnover_pct=body.max_turnover_pct)
+    except ValueError as exc:
+        raise HTTPException(422,str(exc)) from None
 
 async def parse_csv(file:UploadFile,maxbytes=500000):
     if not file.filename or not file.filename.lower().endswith('.csv'):raise HTTPException(422,'Upload CSV file')
