@@ -218,3 +218,33 @@ def test_live_provider_probe_requires_bounded_number_of_cases(monkeypatch,tmp_pa
     monkeypatch.setenv("EVAL_EXTERNAL_AI","true")
     with pytest.raises(ValueError,match="1–180"):
         run(approved=True,max_cases=181,output=tmp_path/"none.json")
+
+
+def test_embedding_vectors_match_source_indexes_even_if_returned_out_of_order(monkeypatch):
+    monkeypatch.setenv("SEC_RESEARCH_ENABLED","true")
+    monkeypatch.setenv("SEC_EMBEDDINGS_ENABLED","true")
+    monkeypatch.setenv("BETA_DEMO_ONLY","false")
+    monkeypatch.setenv("OPENAI_API_KEY","TEST_ONLY")
+    fake=FakeEmbedding()
+    class Reordered:
+        def __init__(self):
+            self.embeddings=SimpleNamespace(create=self.create)
+        def create(self,*,model,input):
+            original=fake.create(model=model,input=input)
+            return SimpleNamespace(data=[
+                SimpleNamespace(index=i,embedding=entry.embedding)
+                for i,entry in reversed(list(enumerate(original.data)))])
+    result=retrieval.rank_passages(SAMPLE,"revenue",use_embeddings=True,embedding_client=Reordered())
+    assert "revenue" in result["passages"][0]["excerpt"].lower()
+
+
+def test_embedding_duplicate_source_index_fails_closed(monkeypatch):
+    monkeypatch.setenv("SEC_RESEARCH_ENABLED","true")
+    monkeypatch.setenv("SEC_EMBEDDINGS_ENABLED","true")
+    monkeypatch.setenv("BETA_DEMO_ONLY","false")
+    monkeypatch.setenv("OPENAI_API_KEY","TEST_ONLY")
+    class Duplicated:
+        embeddings=SimpleNamespace(create=lambda *,model,input: SimpleNamespace(
+            data=[SimpleNamespace(index=0,embedding=[1.0,0.0]) for _ in input]))
+    with pytest.raises(ValueError,match="misindexed"):
+        retrieval.rank_passages(SAMPLE,"revenue",use_embeddings=True,embedding_client=Duplicated())
