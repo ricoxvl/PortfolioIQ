@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from . import store
-from .store import Account, Portfolio, Holding, Tx, Price, Constituent, Security, LoginSession, MarketBar, MarketFetchAttempt
+from .store import Account, Portfolio, Holding, Tx, Price, Constituent, Security, LoginSession, MarketBar, MarketFetchAttempt, IssuerVerifiedSnapshot, PriceImportAudit
 from .security import (PWD, check_password, normalize_email, authenticate, current_user,
                        current_session, csrf_protected, clear_session, digest, database,
                        enforce_login_throttle, record_login_failure)
@@ -26,6 +26,7 @@ from .compute import (to_dashboard, ledger_dashboard, xray_from_rows, validate_c
 from .compute import PARENT
 from . import market
 from . import official_feeds
+from . import verified_data
 
 ASSETS={'Equity','ETF','Fixed Income','Commodity ETF','Cash Equivalent'}
 SYMBOL_RE=re.compile(r'^[A-Z0-9.\-]{1,16}$')
@@ -53,7 +54,7 @@ async def lifespan(app:FastAPI):
     store.init()
     yield
 
-app=FastAPI(title='PortfolioIQ Secure API',version='0.9.0',lifespan=lifespan,
+app=FastAPI(title='PortfolioIQ Secure API',version='1.0.0',lifespan=lifespan,
             description='Account-isolated, educational investment analytics. No trade execution.')
 
 # Reject unexpected Host headers. Configure an explicit domain before deploying.
@@ -87,7 +88,7 @@ def health():
             'data_notice':'Synthetic demo or explicitly imported holdings; no live broker data.',
             'invitation_required':bool(os.getenv('BETA_INVITE_CODE')),
             'demo_only':os.getenv('BETA_DEMO_ONLY','false').lower()=='true',
-            'capabilities':['auth','owner_scoped_portfolios','ledger','price_csv','fund_constituents','xray','stress','ai_evaluation','private_beta_invites','account_export','account_deletion','sourced_benchmark_research','fund_disclosure_audit']}
+            'capabilities':['auth','owner_scoped_portfolios','ledger','price_csv','fund_constituents','xray','stress','ai_evaluation','private_beta_invites','account_export','account_deletion','sourced_benchmark_research','fund_disclosure_audit','issuer_direct_source_verification','licensed_local_security_prices']}
 
 @app.get('/api/v4/ready')
 def readiness(db: Session = Depends(database)):
@@ -124,6 +125,9 @@ def ensure_beta_edit_allowed():
 class NewPortfolio(BaseModel):
     name:str=Field(min_length=1,max_length=75)
     kind:Literal['snapshot','ledger']='snapshot'
+
+class ReplacePriceHistory(BaseModel):
+    confirmation: Literal['REPLACE_PRICE_HISTORY']
 
 class Scenario(BaseModel):
     preset: Literal['equity_selloff','technology_slump','rates_shock','recovery','custom']='technology_slump'
@@ -193,6 +197,8 @@ def export_account(user:Account=Depends(current_user),db:Session=Depends(databas
         securities=db.scalars(select(Security).where(Security.portfolio_id==p.id)).all()
         constituents=db.scalars(select(Constituent).where(Constituent.portfolio_id==p.id)).all()
         benchmarks=db.scalars(select(MarketBar).where(MarketBar.portfolio_id==p.id)).all()
+        issuer_audits=db.scalars(select(IssuerVerifiedSnapshot).where(IssuerVerifiedSnapshot.portfolio_id==p.id)).all()
+        price_audits=db.scalars(select(PriceImportAudit).where(PriceImportAudit.portfolio_id==p.id)).all()
         exported.append({
             'name':p.name,'kind':p.kind,'description':p.description,'is_demo':p.is_demo,'cash':p.cash,
             'holdings':[{'symbol':h.symbol,'name':h.name,'sector':h.sector,'asset_class':h.asset_class,
@@ -204,7 +210,12 @@ def export_account(user:Account=Depends(current_user),db:Session=Depends(databas
             'constituents':[{'fund_symbol':v.fund_symbol,'underlying_symbol':v.underlying_symbol,'sector':v.sector,
                              'weight_pct':v.weight_pct,'as_of':v.as_of.isoformat(),'source':v.source} for v in constituents],
             'market_benchmarks':[{'symbol':v.symbol,'date':v.trading_day.isoformat(),
-                'close':v.close,'source':v.source,'adjustment':v.adjustment} for v in benchmarks]})
+                'close':v.close,'source':v.source,'adjustment':v.adjustment} for v in benchmarks],
+            'verified_issuer_sources':[{'fund_symbol':v.fund_symbol,'issuer':v.issuer,'source_url':v.source_url,
+                'sha256':v.source_sha256,'as_of':v.as_of.isoformat(),'verified_at':v.verified_at.isoformat(),
+                'mapped_weight_pct':v.mapped_weight_pct} for v in issuer_audits],
+            'provider_price_audits':[{'symbol':v.symbol,'provider':v.provider,'sha256':v.source_sha256,
+                'adjustment':v.adjustment,'observations':v.observations,'last_date':v.last_date.isoformat()} for v in price_audits]})
     return JSONResponse({'schema_version':1,'exported_at':store.now().isoformat(),
                          'account':{'email':user.email,'created_at':user.created_at.isoformat()},
                          'portfolios':exported}, headers={'Content-Disposition':'attachment; filename="portfolioiq-account-export.json"',
@@ -220,7 +231,7 @@ def delete_account(body:DeleteAccountRequest,response:Response,user:Account=Depe
         raise HTTPException(403,'Password confirmation failed')
     portfolios=db.scalars(select(Portfolio.id).where(Portfolio.account_id==user.id)).all()
     if portfolios:
-        for model in (Holding,Tx,Price,Constituent,Security,MarketBar):
+        for model in (Holding,Tx,Price,Constituent,Security,MarketBar,IssuerVerifiedSnapshot,PriceImportAudit):
             db.execute(delete(model).where(model.portfolio_id.in_(portfolios)))
         db.execute(delete(Portfolio).where(Portfolio.account_id==user.id))
     db.execute(delete(MarketFetchAttempt).where(MarketFetchAttempt.account_id==user.id))
@@ -345,6 +356,8 @@ async def import_constituents(pid:str,file:UploadFile=File(...),user:Account=Dep
     try: groups=validate_constituents(rows,permitted)
     except (ValueError,TypeError) as e:raise HTTPException(422,str(e))
     for fund,entries in groups.items():
+        # A later user-asserted CSV must invalidate older verified-source provenance.
+        db.execute(delete(IssuerVerifiedSnapshot).where(IssuerVerifiedSnapshot.portfolio_id==p.id,IssuerVerifiedSnapshot.fund_symbol==fund))
         db.execute(delete(Constituent).where(Constituent.portfolio_id==p.id,Constituent.fund_symbol==fund))
         db.add_all([Constituent(portfolio_id=p.id,fund_symbol=r['fund_symbol'],underlying_symbol=r['underlying_symbol'],
                                sector=r['sector'],weight_pct=r['weight_pct'],as_of=date.fromisoformat(r['as_of']),source=r['source']) for r in entries])
@@ -400,12 +413,145 @@ async def price_csv(pid:str,file:UploadFile=File(...),user:Account=Depends(csrf_
             if (symbol,day) in pairs:raise ValueError('Duplicate symbol/date in file')
             pairs.add((symbol,day));parsed.append((symbol,date.fromisoformat(day),close))
     except (ValueError,TypeError,KeyError) as e:raise HTTPException(422,str(e))
+    # A user edit to any symbol invalidates its previous provider-origin batch audit.
+    for sym in {r[0] for r in parsed}:
+        db.execute(delete(PriceImportAudit).where(PriceImportAudit.portfolio_id==p.id,PriceImportAudit.symbol==sym))
     for sym,day,close in parsed:
         existing=db.get(Price,(p.id,sym,day))
         if existing:existing.close=close;existing.source='user_csv'
         else:db.add(Price(portfolio_id=p.id,symbol=sym,trading_day=day,close=close,source='user_csv'))
     db.commit()
     return {'imported':len(parsed),'source':'user_csv'}
+
+
+@app.get('/api/v4/portfolios/{pid}/data-integrity')
+def data_integrity(pid:str,user:Account=Depends(current_user),db:Session=Depends(database)):
+    """The genuine-source trust boundary is explicit for each account portfolio."""
+    p=owned(db,pid,user)
+    audits=db.scalars(select(IssuerVerifiedSnapshot).where(IssuerVerifiedSnapshot.portfolio_id==p.id)).all()
+    prices=db.scalars(select(PriceImportAudit).where(PriceImportAudit.portfolio_id==p.id)).all()
+    result=[]
+    for a in audits:
+        # Never trust a source string alone: audit row must be tied to the current constituent rows.
+        actual=db.scalars(select(Constituent).where(Constituent.portfolio_id==p.id,Constituent.fund_symbol==a.fund_symbol)).all()
+        marker=verified_data.SOURCE_MARKER+a.fund_symbol+':'+a.source_sha256[:24]
+        matches=bool(actual) and len(actual)==a.position_count and all(x.source==marker and x.as_of==a.as_of for x in actual)
+        result.append({'fund_symbol':a.fund_symbol,'issuer':a.issuer,'source_url':a.source_url,
+            'sha256':a.source_sha256,'as_of':a.as_of.isoformat(),
+            'status':'issuer_download_verified' if matches else 'source_invalidated',
+            'stale':(date.today()-a.as_of).days>45,
+            'mapped_weight_pct':a.mapped_weight_pct,
+            'unmapped_weight_pct':round(max(0,100-a.mapped_weight_pct),4),
+            'excluded_positive_weight_pct':a.excluded_weight_pct,
+            'position_count':a.position_count, 'verified_at':a.verified_at.isoformat()})
+    return {'portfolio_id':p.id,'demo_only':p.is_demo or os.getenv('BETA_DEMO_ONLY','false').lower()=='true',
+        'issuer_catalog':verified_data.catalog(),
+        'personal_issuer_import_allowed':verified_data.personal_issuer_import_allowed(),
+        'issuer_sync_allowed':verified_data.issuer_sync_allowed(),
+        'price_sync_allowed':verified_data.price_sync_allowed(),
+        'issuer_snapshots':result,
+        'price_batches':[{'symbol':b.symbol,'provider':b.provider,'sha256':b.source_sha256,
+           'adjustment':b.adjustment,'last_date':b.last_date.isoformat(),
+           'observations':b.observations,'fetched_at':b.fetched_at.isoformat(),
+           'stale':(date.today()-b.last_date).days>7} for b in prices],
+        'rights_notice':'Issuer-format validation does not independently authenticate a manually uploaded file. Automated issuer fetching needs express publisher permission. Public redistribution and licensed security pricing require separate rights.',
+        'account_notice':'Provider API keys and passwords are never included in responses.'}
+
+
+@app.post('/api/v4/portfolios/{pid}/issuer/manual/{fund}')
+async def import_personal_issuer_file(pid:str,fund:str,file:UploadFile=File(...),
+                                     user:Account=Depends(csrf_protected),db:Session=Depends(database)):
+    """Only an existing personal download. Format is validated, origin NOT verified.
+
+    This route does not fetch/poll the issuer site or grant redistribution rights.
+    """
+    p=owned(db,pid,user)
+    ensure_beta_edit_allowed()
+    if p.is_demo or not verified_data.personal_issuer_import_allowed():
+        raise HTTPException(403,'Personal issuer imports require approved local mode')
+    fund=fund.upper()
+    if fund not in verified_data.ISSUERS:raise HTTPException(422,'Unsupported issuer fund')
+    permitted={h.symbol for h in db.scalars(select(Holding).where(Holding.portfolio_id==p.id)) if h.asset_class in ('ETF','Commodity ETF')} if p.kind=='snapshot' else \
+              {h.symbol for h in db.scalars(select(Security).where(Security.portfolio_id==p.id)) if h.asset_class in ('ETF','Commodity ETF')}
+    if fund not in permitted:raise HTTPException(422,'This portfolio must hold the selected ETF')
+    if not file.filename or not file.filename.lower().endswith('.csv'):
+        raise HTTPException(422,'Select a manually downloaded issuer CSV')
+    content=await file.read(verified_data.MAX_ISSUER_BYTES+1)
+    if len(content)>verified_data.MAX_ISSUER_BYTES:raise HTTPException(413,'Issuer file too large')
+    try:
+        evidence=verified_data.parse_issuer_csv(content,fund)
+        groups=validate_constituents(evidence['rows'],{fund})
+    except (ValueError,TypeError) as exc:raise HTTPException(422,str(exc)) from None
+    db.execute(delete(Constituent).where(Constituent.portfolio_id==p.id,Constituent.fund_symbol==fund))
+    db.execute(delete(IssuerVerifiedSnapshot).where(IssuerVerifiedSnapshot.portfolio_id==p.id,IssuerVerifiedSnapshot.fund_symbol==fund))
+    db.add_all([Constituent(portfolio_id=p.id,fund_symbol=fund,underlying_symbol=row['underlying_symbol'],
+               sector=row['sector'],weight_pct=row['weight_pct'],as_of=date.fromisoformat(row['as_of']),
+               source=row['source']) for row in groups[fund]])
+    db.commit()
+    return {k:v for k,v in evidence.items() if k!='rows'} | {'verified':False,
+       'notice':'User-provided file parsed as issuer-format CSV. Its origin was NOT independently verified. No redistribution rights are granted.'}
+
+
+@app.post('/api/v4/portfolios/{pid}/issuer/sync/{fund}')
+def sync_verified_issuer(pid:str,fund:str,user:Account=Depends(csrf_protected),db:Session=Depends(database)):
+    p=owned(db,pid,user)
+    ensure_beta_edit_allowed()
+    if p.is_demo:raise HTTPException(422,'Fictional fund constituents cannot be replaced')
+    fund=fund.upper()
+    if fund not in verified_data.ISSUERS:raise HTTPException(422,'Not an issuer-verified fund in the catalog')
+    permitted={h.symbol for h in db.scalars(select(Holding).where(Holding.portfolio_id==p.id)) if h.asset_class in ('ETF','Commodity ETF')} if p.kind=='snapshot' else \
+              {h.symbol for h in db.scalars(select(Security).where(Security.portfolio_id==p.id)) if h.asset_class in ('ETF','Commodity ETF')}
+    if fund not in permitted:raise HTTPException(422,'This account portfolio must hold the selected ETF')
+    if not verified_data.issuer_sync_allowed():raise HTTPException(403,'Only explicitly authorized local issuer research is supported')
+    try:
+        result=verified_data.fetch_issuer_csv(fund)
+        groups=validate_constituents(result['rows'],{fund})
+    except (ValueError,TypeError) as exc:raise HTTPException(502,str(exc)) from None
+    # Once validated, change both the records and their exact file fingerprint atomically.
+    db.execute(delete(Constituent).where(Constituent.portfolio_id==p.id,Constituent.fund_symbol==fund))
+    db.execute(delete(IssuerVerifiedSnapshot).where(IssuerVerifiedSnapshot.portfolio_id==p.id,IssuerVerifiedSnapshot.fund_symbol==fund))
+    db.add_all([Constituent(portfolio_id=p.id,fund_symbol=fund,underlying_symbol=row['underlying_symbol'],
+                  sector=row['sector'],weight_pct=row['weight_pct'],as_of=date.fromisoformat(row['as_of']),
+                  source=row['source']) for row in groups[fund]])
+    db.add(IssuerVerifiedSnapshot(portfolio_id=p.id,fund_symbol=fund,issuer=result['issuer'],
+             source_url=result['source_url'],source_sha256=result['sha256'],
+             as_of=date.fromisoformat(result['as_of']),position_count=result['mapped_rows'],
+             mapped_weight_pct=result['mapped_weight_pct'],
+             excluded_weight_pct=result['excluded_positive_weight_pct']))
+    db.commit()
+    return {k:v for k,v in result.items() if k!='rows'}
+
+
+@app.post('/api/v4/portfolios/{pid}/prices/provider/sync/{symbol}')
+def sync_verified_price_history(pid:str,symbol:str,body:ReplacePriceHistory,
+                               user:Account=Depends(csrf_protected),db:Session=Depends(database)):
+    """Explicitly replaces one held ledger security's unadjusted closes (not benchmark bars)."""
+    p=owned(db,pid,user)
+    ensure_beta_edit_allowed()
+    if p.is_demo or p.kind!='ledger':raise HTTPException(422,'An editable dated ledger is required')
+    symbol=symbol.upper()
+    held=db.get(Security,(p.id,symbol))
+    if held is None or held.asset_class in ('Cash Equivalent',):
+        raise HTTPException(422,'Symbol must be a security in your account-owned ledger')
+    if not verified_data.price_sync_allowed():
+        raise HTTPException(403,'Provider disabled; an authorized key and suitable license are required')
+    since=store.now()-__import__('datetime').timedelta(hours=1)
+    count=db.scalar(select(func.count(MarketFetchAttempt.id)).where(
+        MarketFetchAttempt.account_id==user.id,MarketFetchAttempt.occurred_at>=since)) or 0
+    if count>=2:raise HTTPException(429,'Market provider hourly quota reached')
+    db.add(MarketFetchAttempt(account_id=user.id));db.commit()
+    try:values=verified_data.fetch_raw_provider_prices(symbol)
+    except ValueError as exc:raise HTTPException(502,str(exc)) from None
+    # A failure above cannot alter existing historical prices.
+    db.execute(delete(Price).where(Price.portfolio_id==p.id,Price.symbol==symbol))
+    db.execute(delete(PriceImportAudit).where(PriceImportAudit.portfolio_id==p.id,PriceImportAudit.symbol==symbol))
+    db.add_all([Price(portfolio_id=p.id,symbol=symbol,trading_day=row['date'],close=row['close'],
+                      source='twelvedata_unadjusted') for row in values['rows']])
+    db.add(PriceImportAudit(portfolio_id=p.id,symbol=symbol,provider=values['provider'],
+             source_sha256=values['sha256'],adjustment=values['adjustment'],
+             observations=len(values['rows']),last_date=date.fromisoformat(values['as_of'])))
+    db.commit()
+    return {k:v for k,v in values.items() if k!='rows'} | {'observations':len(values['rows'])}
 
 
 
