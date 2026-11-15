@@ -27,6 +27,7 @@ from .compute import PARENT
 from . import market
 from . import official_feeds
 from . import verified_data
+from . import filing_research
 
 ASSETS={'Equity','ETF','Fixed Income','Commodity ETF','Cash Equivalent'}
 SYMBOL_RE=re.compile(r'^[A-Z0-9.\-]{1,16}$')
@@ -137,6 +138,14 @@ class Scenario(BaseModel):
 class Question(BaseModel):
     question:str=Field(min_length=3,max_length=1200)
     use_ai:bool=False
+    use_sec_research:bool=False
+    research_symbol:str|None=None
+    research_form:Literal['10-K','10-Q']='10-K'
+
+class SECQuery(BaseModel):
+    symbol:str=Field(min_length=1,max_length=16)
+    query:str=Field(min_length=5,max_length=240)
+    form:Literal['10-K','10-Q']='10-K'
 
 class TransactionIn(BaseModel):
     occurred_on:date
@@ -629,13 +638,50 @@ def sync_market_benchmark(pid:str,symbol:str,user:Account=Depends(csrf_protected
     except ValueError as exc:raise HTTPException(502,str(exc)) from None
     return _store_benchmark(db,p,values,provider_verified=True)
 
+def _held_sec_symbol(dash:dict,symbol:str) -> str:
+    sym=(symbol or '').strip().upper()
+    if not SYMBOL_RE.fullmatch(sym) or not any(
+            h['symbol']==sym and h.get('asset_class')=='Equity' for h in dash['holdings']):
+        raise HTTPException(422,'SEC issuer research requires a held direct equity symbol, not an ETF or unheld issuer')
+    return sym
+
+
+@app.get('/api/v4/portfolios/{pid}/research/sec/status')
+def sec_research_status(pid:str,user:Account=Depends(current_user),db:Session=Depends(database)):
+    owned(db,pid,user)
+    return filing_research.status()
+
+
+@app.post('/api/v4/portfolios/{pid}/research/sec')
+def sec_research(pid:str,body:SECQuery,user:Account=Depends(csrf_protected),db:Session=Depends(database)):
+    """User-initiated extractive EDGAR research. No background crawling or LLM by default."""
+    p=owned(db,pid,user)
+    if p.is_demo:raise HTTPException(422,'SEC filing research is disabled for fictional demo portfolios')
+    if not filing_research.enabled():raise HTTPException(403,'SEC filing research is not enabled in this environment')
+    dash=details(db,p)
+    sym=_held_sec_symbol(dash,body.symbol)
+    try:
+        return filing_research.research(sym,body.query,body.form)
+    except ValueError as exc:
+        raise HTTPException(502,'SEC source unavailable or no supported filing: '+str(exc)) from None
+
+
 @app.post('/api/v4/portfolios/{pid}/analyst')
 def analyst(pid:str,body:Question,user:Account=Depends(csrf_protected),db:Session=Depends(database)):
     p=owned(db,pid,user);dash=details(db,p);xr=xr_details(db,p,dash)
+    if body.use_sec_research and not body.use_ai:
+        raise HTTPException(422,'SEC-assisted AI requires explicit external AI opt-in')
     if body.use_ai:
         if not os.getenv('OPENAI_API_KEY'):raise HTTPException(422,'OPENAI_API_KEY not configured; use guided mode')
+        context=None
+        if body.use_sec_research:
+            if p.is_demo:raise HTTPException(422,'SEC issuer analysis is not available for fictional demo holdings')
+            if not filing_research.enabled():raise HTTPException(403,'SEC research is disabled in this environment')
+            symbol=_held_sec_symbol(dash,body.research_symbol or '')
+            try:context=filing_research.research(symbol,body.question,body.research_form)
+            except ValueError as exc:raise HTTPException(502,'SEC filing research unavailable: '+str(exc)) from None
         comp=compare_presets(xr) if xr.get('available') else []
-        try:return run_analyst(body.question,dash,xr,comp)
+        try:return run_analyst(body.question,dash,xr,comp,research=context)
         except Exception as e:raise HTTPException(502,'AI provider error; use guided mode') from e
     return guided_answer(body.question,dash,xr)
 
@@ -655,7 +701,41 @@ def guided_answer(question,dash,xr):
     sources=[{'label':'Portfolio overview','detail':'Calculated from this account-scoped portfolio'}]
     topic='overview'
 
-    if any(k in q for k in ('overlap','etf','sector','concentrat','diversif','exposure','underlying')):
+    if any(k in q for k in ('attribution','contributor','contributed','return contribution','performance driver')):
+        topic='attribution'
+        a=dash.get('attribution') or {}
+        sources.append({'label':'Ledger attribution','detail':'Phase 8 chain-linked return contributions, not benchmark-relative attribution'})
+        if not a.get('available') or not a.get('reconciled'):
+            answer='Security-level performance attribution is unavailable for this portfolio. '+a.get(
+                'reason','A complete dated transaction ledger and reconciled price history are required.')+' No holding contribution has been estimated. '+notices
+        else:
+            ranked=a.get('rows',[])[:5]
+            evidence=[{'label':x['symbol'],'value':f"{x['contribution_pct']:+.3f} percentage points",
+                       'detail':f"Sum of observed daily P/L: ${x['observed_pnl']:,.2f}"} for x in ranked]
+            details='; '.join(f"{x['symbol']} {x['contribution_pct']:+.3f} pp" for x in ranked)
+            answer=(f"Reconciled chain-linked portfolio return is {a['return_pct']:+.3f}%. "
+                    f"Largest measured contributions: {details or 'none'}. "
+                    'External deposits and withdrawals are excluded. These are security contributions '
+                    'to portfolio TWR, not a benchmark-relative allocation/selection analysis. '+notices)
+    elif any(k in q for k in ('price coverage','missing price','data quality','source freshness','stale price','incomplete history')):
+        topic='data_quality'
+        coverage=dash.get('price_quality') or {}
+        sources.append({'label':'Historical price coverage','detail':'Imported raw price observation dates and seven-calendar-day valuation rules'})
+        if not coverage.get('available'):
+            answer='Historical price-data coverage is unavailable. '+coverage.get(
+                'reason','A dated transaction ledger is required.')+' No prices have been inferred. '+notices
+        else:
+            good=coverage.get('complete_dates',0)
+            total=coverage.get('valuation_dates',0)
+            missing=coverage.get('missing_dates') or []
+            first=missing[0] if missing else None
+            evidence.append({'label':'Complete valuation dates','value':f'{good}/{total}',
+                             'detail':'Observed dates only, not all market sessions'})
+            answer=(f'Usable closing prices exist on {good} of {total} observed ledger valuation dates. '
+                    +(f"First incomplete valuation: {first['date']}, missing {', '.join(first['symbols'])}. " if first else
+                      'No missing prices on observed ledger dates. ')
+                    +'Raw closing-price labels are user-attested, not independently verified. '+notices)
+    elif any(k in q for k in ('overlap','etf','sector','concentrat','diversif','exposure','underlying')):
         topic='xray'
         sources.append({'label':'Portfolio X-Ray','detail':'One-level, dated constituent look-through with unmapped exposure preserved'})
         if not available:
