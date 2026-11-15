@@ -81,7 +81,7 @@ async def security_headers(request: Request, call_next):
 
 @app.get('/api/v4/health')
 def health():
-    return {'status':'ok','version':'0.6.0','database':'postgresql' if store.DATABASE_URL.startswith('postgresql') else 'sqlite_local',
+    return {'status':'ok','version':app.version,'database':'postgresql' if store.DATABASE_URL.startswith('postgresql') else 'sqlite_local',
             'data_notice':'Synthetic demo or explicitly imported holdings; no live broker data.',
             'invitation_required':bool(os.getenv('BETA_INVITE_CODE')),
             'demo_only':os.getenv('BETA_DEMO_ONLY','false').lower()=='true',
