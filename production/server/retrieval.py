@@ -131,11 +131,17 @@ def rank_passages(text: str, question: str, *, use_embeddings: bool = False,
         try:
             answer = client.embeddings.create(model=model,
                 input=[question] + [row["excerpt"][:850] for row in selected])
-            vectors = [item.embedding for item in answer.data]
+            # SDK responses include an index for each embedded input. Reject
+            # mismatched or duplicate indexes rather than attaching a vector
+            # to the wrong filing excerpt.
+            records = [(getattr(item, "index", i), item.embedding)
+                       for i, item in enumerate(answer.data)]
         except Exception as exc:
             raise ValueError("External embedding provider unavailable; no semantic ranking produced") from exc
-        if len(vectors) != len(selected) + 1:
-            raise ValueError("Embedding provider returned incomplete vectors")
+        if (len(records) != len(selected) + 1
+                or sorted(i for i, _ in records) != list(range(len(records)))):
+            raise ValueError("Embedding provider returned incomplete or misindexed vectors")
+        vectors = [vector for _, vector in sorted(records, key=lambda item: item[0])]
         scored = []
         for row, vector in zip(selected, vectors[1:]):
             score = _cosine(vectors[0], vector)
