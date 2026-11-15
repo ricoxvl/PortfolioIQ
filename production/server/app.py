@@ -141,11 +141,13 @@ class Question(BaseModel):
     use_sec_research:bool=False
     research_symbol:str|None=None
     research_form:Literal['10-K','10-Q']='10-K'
+    use_embeddings:bool=False
 
 class SECQuery(BaseModel):
     symbol:str=Field(min_length=1,max_length=16)
     query:str=Field(min_length=5,max_length=240)
     form:Literal['10-K','10-Q']='10-K'
+    use_embeddings:bool=False
 
 class TransactionIn(BaseModel):
     occurred_on:date
@@ -660,8 +662,11 @@ def sec_research(pid:str,body:SECQuery,user:Account=Depends(csrf_protected),db:S
     if not filing_research.enabled():raise HTTPException(403,'SEC filing research is not enabled in this environment')
     dash=details(db,p)
     sym=_held_sec_symbol(dash,body.symbol)
+    if body.use_embeddings and not filing_research.embedding_enabled():
+        raise HTTPException(403,'Opt-in semantic embedding provider is disabled or not configured')
     try:
-        return filing_research.research(sym,body.query,body.form)
+        kwargs={'use_embeddings':True} if body.use_embeddings else {}
+        return filing_research.research(sym,body.query,body.form,**kwargs)
     except ValueError as exc:
         raise HTTPException(502,'SEC source unavailable or no supported filing: '+str(exc)) from None
 
@@ -671,6 +676,8 @@ def analyst(pid:str,body:Question,user:Account=Depends(csrf_protected),db:Sessio
     p=owned(db,pid,user);dash=details(db,p);xr=xr_details(db,p,dash)
     if body.use_sec_research and not body.use_ai:
         raise HTTPException(422,'SEC-assisted AI requires explicit external AI opt-in')
+    if body.use_embeddings and not body.use_sec_research:
+        raise HTTPException(422,'Semantic reranking requires explicit SEC research consent')
     if body.use_ai:
         if not os.getenv('OPENAI_API_KEY'):raise HTTPException(422,'OPENAI_API_KEY not configured; use guided mode')
         context=None
@@ -678,7 +685,11 @@ def analyst(pid:str,body:Question,user:Account=Depends(csrf_protected),db:Sessio
             if p.is_demo:raise HTTPException(422,'SEC issuer analysis is not available for fictional demo holdings')
             if not filing_research.enabled():raise HTTPException(403,'SEC research is disabled in this environment')
             symbol=_held_sec_symbol(dash,body.research_symbol or '')
-            try:context=filing_research.research(symbol,body.question,body.research_form)
+            if body.use_embeddings and not filing_research.embedding_enabled():
+                raise HTTPException(403,'Opt-in semantic embedding provider is disabled or not configured')
+            try:
+                kwargs={'use_embeddings':True} if body.use_embeddings else {}
+                context=filing_research.research(symbol,body.question,body.research_form,**kwargs)
             except ValueError as exc:raise HTTPException(502,'SEC filing research unavailable: '+str(exc)) from None
         comp=compare_presets(xr) if xr.get('available') else []
         try:return run_analyst(body.question,dash,xr,comp,research=context)
