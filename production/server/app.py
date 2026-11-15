@@ -712,7 +712,7 @@ def guided_answer(question,dash,xr):
     sources=[{'label':'Portfolio overview','detail':'Calculated from this account-scoped portfolio'}]
     topic='overview'
 
-    if any(k in q for k in ('attribution','contributor','contributed','return contribution','performance driver')):
+    if any(k in q for k in ('attribution','contributor','contributed','return contribution','holding contribution','contribution to my return','performance driver')):
         topic='attribution'
         a=dash.get('attribution') or {}
         sources.append({'label':'Ledger attribution','detail':'Phase 8 chain-linked return contributions, not benchmark-relative attribution'})
