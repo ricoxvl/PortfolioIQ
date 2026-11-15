@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from . import store
-from .store import Account, Portfolio, Holding, Tx, Price, Constituent, Security, LoginSession, MarketBar, MarketFetchAttempt, IssuerVerifiedSnapshot, PriceImportAudit
+from .store import Account, Portfolio, Holding, Tx, Price, Constituent, Security, LoginSession, MarketBar, MarketFetchAttempt, IssuerVerifiedSnapshot, PriceImportAudit, AlertRule
 from .security import (PWD, check_password, normalize_email, authenticate, current_user,
                        current_session, csrf_protected, clear_session, digest, database,
                        enforce_login_throttle, record_login_failure)
@@ -29,6 +29,7 @@ from . import official_feeds
 from . import verified_data
 from . import filing_research
 from . import monte_carlo, rebalancing
+from . import reporting, alert_rules
 
 ASSETS={'Equity','ETF','Fixed Income','Commodity ETF','Cash Equivalent'}
 SYMBOL_RE=re.compile(r'^[A-Z0-9.\-]{1,16}$')
@@ -90,7 +91,7 @@ def health():
             'data_notice':'Synthetic demo or explicitly imported holdings; no live broker data.',
             'invitation_required':bool(os.getenv('BETA_INVITE_CODE')),
             'demo_only':os.getenv('BETA_DEMO_ONLY','false').lower()=='true',
-            'capabilities':['auth','owner_scoped_portfolios','ledger','price_csv','fund_constituents','xray','stress','ai_evaluation','private_beta_invites','account_export','account_deletion','sourced_benchmark_research','fund_disclosure_audit','issuer_direct_source_verification','licensed_local_security_prices','historical_bootstrap_research','read_only_rebalance_planner']}
+            'capabilities':['auth','owner_scoped_portfolios','ledger','price_csv','fund_constituents','xray','stress','ai_evaluation','private_beta_invites','account_export','account_deletion','sourced_benchmark_research','fund_disclosure_audit','issuer_direct_source_verification','licensed_local_security_prices','historical_bootstrap_research','read_only_rebalance_planner','portfolio_pdf_csv_exports','on_demand_alert_rules']}
 
 @app.get('/api/v4/ready')
 def readiness(db: Session = Depends(database)):
@@ -147,6 +148,13 @@ class RebalanceRequest(BaseModel):
     max_position_pct:float=Field(default=100,ge=1,le=100)
     min_cash_pct:float=Field(default=0,ge=0,le=100)
     max_turnover_pct:float=Field(default=100,ge=0,le=100)
+
+class AlertRuleInput(BaseModel):
+    kind: Literal['portfolio_value_below','top_three_concentration_above',
+                  'holding_weight_above','historical_max_drawdown_above','missing_prices_count_above']
+    threshold: float = Field(allow_inf_nan=False)
+    symbol: str = Field(default='',max_length=16)
+
 
 class Question(BaseModel):
     question:str=Field(min_length=3,max_length=1200)
@@ -221,6 +229,7 @@ def export_account(user:Account=Depends(current_user),db:Session=Depends(databas
         benchmarks=db.scalars(select(MarketBar).where(MarketBar.portfolio_id==p.id)).all()
         issuer_audits=db.scalars(select(IssuerVerifiedSnapshot).where(IssuerVerifiedSnapshot.portfolio_id==p.id)).all()
         price_audits=db.scalars(select(PriceImportAudit).where(PriceImportAudit.portfolio_id==p.id)).all()
+        rules=db.scalars(select(AlertRule).where(AlertRule.portfolio_id==p.id)).all()
         exported.append({
             'name':p.name,'kind':p.kind,'description':p.description,'is_demo':p.is_demo,'cash':p.cash,
             'holdings':[{'symbol':h.symbol,'name':h.name,'sector':h.sector,'asset_class':h.asset_class,
@@ -237,7 +246,9 @@ def export_account(user:Account=Depends(current_user),db:Session=Depends(databas
                 'sha256':v.source_sha256,'as_of':v.as_of.isoformat(),'verified_at':v.verified_at.isoformat(),
                 'mapped_weight_pct':v.mapped_weight_pct} for v in issuer_audits],
             'provider_price_audits':[{'symbol':v.symbol,'provider':v.provider,'sha256':v.source_sha256,
-                'adjustment':v.adjustment,'observations':v.observations,'last_date':v.last_date.isoformat()} for v in price_audits]})
+                'adjustment':v.adjustment,'observations':v.observations,'last_date':v.last_date.isoformat()} for v in price_audits],
+            'alert_rules':[{'kind':r.kind,'symbol':r.symbol,'threshold':r.threshold,
+                            'created_at':r.created_at.isoformat()} for r in rules]})
     return JSONResponse({'schema_version':1,'exported_at':store.now().isoformat(),
                          'account':{'email':user.email,'created_at':user.created_at.isoformat()},
                          'portfolios':exported}, headers={'Content-Disposition':'attachment; filename="portfolioiq-account-export.json"',
@@ -253,7 +264,7 @@ def delete_account(body:DeleteAccountRequest,response:Response,user:Account=Depe
         raise HTTPException(403,'Password confirmation failed')
     portfolios=db.scalars(select(Portfolio.id).where(Portfolio.account_id==user.id)).all()
     if portfolios:
-        for model in (Holding,Tx,Price,Constituent,Security,MarketBar,IssuerVerifiedSnapshot,PriceImportAudit):
+        for model in (Holding,Tx,Price,Constituent,Security,MarketBar,IssuerVerifiedSnapshot,PriceImportAudit,AlertRule):
             db.execute(delete(model).where(model.portfolio_id.in_(portfolios)))
         db.execute(delete(Portfolio).where(Portfolio.account_id==user.id))
     db.execute(delete(MarketFetchAttempt).where(MarketFetchAttempt.account_id==user.id))
@@ -316,6 +327,69 @@ def create_portfolio(body:NewPortfolio,user:Account=Depends(csrf_protected),db:S
 @app.get('/api/v4/portfolios/{pid}/overview')
 def overview(pid:str,user:Account=Depends(current_user),db:Session=Depends(database)):
     return details(db,owned(db,pid,user))
+
+@app.get('/api/v4/portfolios/{pid}/reports/{report_type}')
+def portfolio_report(pid:str,report_type:str,user:Account=Depends(current_user),db:Session=Depends(database)):
+    """Account-scoped, generated-at-request report with no stored copies."""
+    p=owned(db,pid,user)
+    if report_type not in ('summary.pdf','holdings.csv','performance.csv'):
+        raise HTTPException(404,'Unknown report type')
+    ctx=reporting.report_context(details(db,p))
+    name='portfolioiq-'+p.id[:8]+'-'+report_type
+    if report_type=='summary.pdf':
+        payload=reporting.portfolio_pdf(ctx)
+        mime='application/pdf'
+    elif report_type=='holdings.csv':
+        payload=reporting.holdings_csv(ctx)
+        mime='text/csv; charset=utf-8'
+    else:
+        payload=reporting.performance_csv(ctx)
+        if payload is None:
+            raise HTTPException(422,'Complete dated portfolio performance is unavailable; no CSV was fabricated')
+        mime='text/csv; charset=utf-8'
+    return Response(content=payload,media_type=mime,headers={
+        'Content-Disposition':f'attachment; filename="{name}"',
+        'Cache-Control':'no-store',
+        'X-Content-Type-Options':'nosniff',
+    })
+
+
+@app.get('/api/v4/portfolios/{pid}/alerts')
+def portfolio_alerts(pid:str,user:Account=Depends(current_user),db:Session=Depends(database)):
+    p=owned(db,pid,user)
+    dash=details(db,p)
+    rules=db.scalars(select(AlertRule).where(AlertRule.portfolio_id==p.id).order_by(AlertRule.created_at,AlertRule.id)).all()
+    return {'alerts':[alert_rules.evaluate(rule,dash) for rule in rules],
+            'catalog':alert_rules.catalog(),'rule_limit':20,
+            'notice':'Rules are checked only when this panel is opened/refreshed, never in the background. '
+                     'Alert results use the current account-scoped calculation, not live market monitoring.'}
+
+
+@app.post('/api/v4/portfolios/{pid}/alerts',status_code=201)
+def add_portfolio_alert(pid:str,body:AlertRuleInput,user:Account=Depends(csrf_protected),db:Session=Depends(database)):
+    ensure_beta_edit_allowed()
+    p=owned(db,pid,user)
+    symbol=alert_rules.validate_rule(body.kind,body.threshold,body.symbol.strip().upper(),details(db,p))
+    count=db.scalar(select(func.count()).select_from(AlertRule).where(AlertRule.portfolio_id==p.id)) or 0
+    if count>=20:raise HTTPException(422,'At most 20 alert thresholds per portfolio')
+    existing=db.scalar(select(AlertRule).where(AlertRule.portfolio_id==p.id,
+                        AlertRule.kind==body.kind,AlertRule.symbol==symbol,
+                        AlertRule.threshold==body.threshold))
+    if existing:raise HTTPException(409,'This alert threshold already exists')
+    rule=AlertRule(portfolio_id=p.id,kind=body.kind,symbol=symbol,threshold=float(body.threshold))
+    db.add(rule);db.commit()
+    return {'id':rule.id,'created':True,'notice':'On-demand rule saved; no monitoring or push notifications are scheduled.'}
+
+
+@app.delete('/api/v4/portfolios/{pid}/alerts/{rule_id}')
+def delete_portfolio_alert(pid:str,rule_id:str,user:Account=Depends(csrf_protected),db:Session=Depends(database)):
+    ensure_beta_edit_allowed()
+    p=owned(db,pid,user)
+    rule=db.scalar(select(AlertRule).where(AlertRule.id==rule_id,AlertRule.portfolio_id==p.id))
+    if rule is None:raise HTTPException(404,'Portfolio alert not found')
+    db.delete(rule);db.commit()
+    return {'deleted':True,'id':rule_id}
+
 
 @app.get('/api/v4/portfolios/{pid}/xray')
 def xray(pid:str,user:Account=Depends(current_user),db:Session=Depends(database)):
