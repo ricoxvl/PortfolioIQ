@@ -28,10 +28,7 @@ services:
       - key: BETA_INVITE_CODE
         generateValue: true
       - key: TRUSTED_HOSTS
-        fromService:
-          name: portfolioiq-private-beta
-          type: web
-          envVarKey: RENDER_EXTERNAL_HOSTNAME
+        value: portfolioiq-private-beta.onrender.com
       - key: DATABASE_URL
         fromDatabase:
           name: portfolioiq-ephemeral-beta-db

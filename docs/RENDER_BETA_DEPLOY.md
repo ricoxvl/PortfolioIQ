@@ -17,7 +17,7 @@
 7. From a separate private browser session, confirm registration without a code is blocked. Register a **test-only** account with the invitation code, view synthetic performance, X-Ray, scenarios, and the guided analyst; export then delete the account.
 8. Confirm the app rejects imports and new portfolios while `BETA_DEMO_ONLY=true`. Keep the invite secret and monitor abnormal signups, errors, and usage.
 
-The Render service uses managed HTTPS, the app's `COOKIE_SECURE=true`, strict allowed-host checking against Render's generated hostname, an independent generated rate-limit secret, and its own generated invite code. The Python Docker entrypoint applies Alembic migrations before serving traffic. Render provides `postgresql://` connection URLs; SQLAlchemy's data layer converts them into `postgresql+psycopg://`.
+The Render service uses managed HTTPS, the app's `COOKIE_SECURE=true`, strict allowed-host checking against the explicitly configured Render hostname `portfolioiq-private-beta.onrender.com`, an independent generated rate-limit secret, and its own generated invite code. The Python Docker entrypoint applies Alembic migrations before serving traffic. Render provides `postgresql://` connection URLs; SQLAlchemy's data layer converts them into `postgresql+psycopg://`.
 
 ## Operational controls before a broader beta
 
