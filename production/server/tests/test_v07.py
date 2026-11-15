@@ -91,3 +91,10 @@ def test_all_preset_scenarios_reconcile_to_starting_value():
     for scenario in compare_presets(xr):
         assert abs(scenario['before']+scenario['change']-scenario['after'])<=.02
         assert abs(sum(row['impact'] for row in scenario['breakdown'])-scenario['change'])<=.02
+
+
+def test_public_health_version_tracks_application_release():
+    from server.app import app, health
+    assert app.version == '0.7.0'
+    assert health()['version'] == app.version
+    assert 'database' in health()
