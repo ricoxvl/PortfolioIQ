@@ -197,3 +197,8 @@ The v0.3 application above is retained for backwards compatibility. Its local si
 ### v0.9 · Official reference data and issuer source links
 
 Market Intelligence now separately retrieves the European Central Bank’s EUR/USD reference exchange rate and the U.S. Treasury’s daily nominal par-yield curve. Both series include publisher credit, original URLs, latest observation dates, six-hour caches and explicit stale/unavailable states. These are **official macro reference observations**, not live ETF or stock prices, investable returns or financial advice. EUR/USD is USD per EUR; Treasury yields are annualized percentages. The fictional portfolio, its performance, and ETF constituent weights remain fictional. Issuer links are pointers for manual verification, not permissions to republish fund holdings. The commercial Twelve Data connector remains gated and disabled in the hosted demo. More: `docs/PHASE6_1_OFFICIAL_REFERENCES.md`.
+
+
+## v1.0 — Verified data origin, not unlicensed live quotes
+
+PortfolioIQ v1.0 adds a **local-only, opt-in** equity/ETF price connector, unadjusted historical bar auditing, original-format iShares IVV/IWM issuer-file import, and documented publisher-origin verification *only when automated access is separately permitted*. Data Integrity displays per-account source records, freshness, coverage and SHA-256 fingerprints, with correct distinctions among **source verified**, **issuer-format validated / user attested**, and **fictional**. User CSV edits invalidate older source audits. The hosted beta remains strictly **fictional and read-only** and does not acquire or redistribute vendor quotations or BlackRock issuer data. See [Phase 7 genuine data documentation](docs/PHASE7_GENUINE_DATA_PIPELINE.md).
