@@ -94,6 +94,19 @@ def ledger_dashboard(p,txs, securities, prices):
                            'pricing':'User-imported unadjusted prices only; record splits/dividends in ledger separately.'}}
     result['price_quality'] = assess_price_history(transactions,bars,replay=replay,price_at=price_at)
     result['attribution'] = attribute_ledger(transactions,bars,hist,replay=replay,price_at=price_at)
+    # Independently compare the new decomposition against the legacy unit-NAV
+    # TWR calculation. Both are flow-adjusted; cent-rounded valuation rows can
+    # produce small differences, but material discrepancies suppress the view.
+    audit = result['attribution']
+    if audit['available'] and twr is not None:
+        delta = round(audit['return_pct'] - float(twr), 6)
+        if abs(delta) > 0.02:
+            result['attribution'] = {
+                'available': False, 'reconciled': False, 'rows': [],
+                'reason': 'Attribution disagrees with independent ledger TWR; review price and transaction precision.'
+            }
+        else:
+            audit['ledger_twr_difference_pct'] = delta
     return result
 
 def xray_from_rows(dashboard, fund_rows):
