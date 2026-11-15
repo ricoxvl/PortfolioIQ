@@ -12,18 +12,19 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field
-from sqlalchemy import select, delete, text
+from sqlalchemy import select, delete, text, func
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from . import store
-from .store import Account, Portfolio, Holding, Tx, Price, Constituent, Security, LoginSession
+from .store import Account, Portfolio, Holding, Tx, Price, Constituent, Security, LoginSession, MarketBar, MarketFetchAttempt
 from .security import (PWD, check_password, normalize_email, authenticate, current_user,
                        current_session, csrf_protected, clear_session, digest, database,
                        enforce_login_throttle, record_login_failure)
 from .compute import (to_dashboard, ledger_dashboard, xray_from_rows, validate_constituents,
                       validate_tx, replay, validate_day, shock_result, compare_presets, run_analyst)
 from .compute import PARENT
+from . import market
 
 ASSETS={'Equity','ETF','Fixed Income','Commodity ETF','Cash Equivalent'}
 SYMBOL_RE=re.compile(r'^[A-Z0-9.\-]{1,16}$')
@@ -51,7 +52,7 @@ async def lifespan(app:FastAPI):
     store.init()
     yield
 
-app=FastAPI(title='PortfolioIQ Secure API',version='0.7.0',lifespan=lifespan,
+app=FastAPI(title='PortfolioIQ Secure API',version='0.8.0',lifespan=lifespan,
             description='Account-isolated, educational investment analytics. No trade execution.')
 
 # Reject unexpected Host headers. Configure an explicit domain before deploying.
@@ -85,7 +86,7 @@ def health():
             'data_notice':'Synthetic demo or explicitly imported holdings; no live broker data.',
             'invitation_required':bool(os.getenv('BETA_INVITE_CODE')),
             'demo_only':os.getenv('BETA_DEMO_ONLY','false').lower()=='true',
-            'capabilities':['auth','owner_scoped_portfolios','ledger','price_csv','fund_constituents','xray','stress','ai_evaluation','private_beta_invites','account_export','account_deletion']}
+            'capabilities':['auth','owner_scoped_portfolios','ledger','price_csv','fund_constituents','xray','stress','ai_evaluation','private_beta_invites','account_export','account_deletion','sourced_benchmark_research','fund_disclosure_audit']}
 
 @app.get('/api/v4/ready')
 def readiness(db: Session = Depends(database)):
@@ -190,6 +191,7 @@ def export_account(user:Account=Depends(current_user),db:Session=Depends(databas
         prices=db.scalars(select(Price).where(Price.portfolio_id==p.id).order_by(Price.trading_day)).all()
         securities=db.scalars(select(Security).where(Security.portfolio_id==p.id)).all()
         constituents=db.scalars(select(Constituent).where(Constituent.portfolio_id==p.id)).all()
+        benchmarks=db.scalars(select(MarketBar).where(MarketBar.portfolio_id==p.id)).all()
         exported.append({
             'name':p.name,'kind':p.kind,'description':p.description,'is_demo':p.is_demo,'cash':p.cash,
             'holdings':[{'symbol':h.symbol,'name':h.name,'sector':h.sector,'asset_class':h.asset_class,
@@ -199,7 +201,9 @@ def export_account(user:Account=Depends(current_user),db:Session=Depends(databas
             'prices':[{'symbol':v.symbol,'date':v.trading_day.isoformat(),'close':v.close,'source':v.source} for v in prices],
             'securities':[{'symbol':v.symbol,'name':v.name,'sector':v.sector,'asset_class':v.asset_class} for v in securities],
             'constituents':[{'fund_symbol':v.fund_symbol,'underlying_symbol':v.underlying_symbol,'sector':v.sector,
-                             'weight_pct':v.weight_pct,'as_of':v.as_of.isoformat(),'source':v.source} for v in constituents]})
+                             'weight_pct':v.weight_pct,'as_of':v.as_of.isoformat(),'source':v.source} for v in constituents],
+            'market_benchmarks':[{'symbol':v.symbol,'date':v.trading_day.isoformat(),
+                'close':v.close,'source':v.source,'adjustment':v.adjustment} for v in benchmarks]})
     return JSONResponse({'schema_version':1,'exported_at':store.now().isoformat(),
                          'account':{'email':user.email,'created_at':user.created_at.isoformat()},
                          'portfolios':exported}, headers={'Content-Disposition':'attachment; filename="portfolioiq-account-export.json"',
@@ -215,9 +219,10 @@ def delete_account(body:DeleteAccountRequest,response:Response,user:Account=Depe
         raise HTTPException(403,'Password confirmation failed')
     portfolios=db.scalars(select(Portfolio.id).where(Portfolio.account_id==user.id)).all()
     if portfolios:
-        for model in (Holding,Tx,Price,Constituent,Security):
+        for model in (Holding,Tx,Price,Constituent,Security,MarketBar):
             db.execute(delete(model).where(model.portfolio_id.in_(portfolios)))
         db.execute(delete(Portfolio).where(Portfolio.account_id==user.id))
+    db.execute(delete(MarketFetchAttempt).where(MarketFetchAttempt.account_id==user.id))
     db.execute(delete(LoginSession).where(LoginSession.account_id==user.id))
     db.delete(user)
     db.commit()
@@ -400,6 +405,69 @@ async def price_csv(pid:str,file:UploadFile=File(...),user:Account=Depends(csrf_
         else:db.add(Price(portfolio_id=p.id,symbol=sym,trading_day=day,close=close,source='user_csv'))
     db.commit()
     return {'imported':len(parsed),'source':'user_csv'}
+
+
+
+@app.get('/api/v4/portfolios/{pid}/market')
+def market_research(pid:str, symbol:str='SPY',user:Account=Depends(current_user),db:Session=Depends(database)):
+    """Read-only, account-scoped research. Does not fetch or imply real demo prices."""
+    p=owned(db,pid,user)
+    symbol=symbol.upper()
+    if symbol not in market.BENCHMARKS:raise HTTPException(422,'Select a supported benchmark')
+    fund_rows=db.scalars(select(Constituent).where(Constituent.portfolio_id==p.id)).all()
+    d=details(db,p)
+    bars=db.scalars(select(MarketBar).where(MarketBar.portfolio_id==p.id,MarketBar.symbol==symbol).order_by(MarketBar.trading_day)).all()
+    converted=[{'symbol':x.symbol,'date':x.trading_day,'close':x.close,'source':x.source,'adjustment':x.adjustment} for x in bars]
+    quote=market.quote_summary(converted)
+    comparison=market.compare_to_ledger(d,converted)
+    return {'status':market.market_status(demo=p.is_demo),'benchmark':quote,'comparison':comparison,
+            'fund_disclosures':market.fund_snapshot_audit(d.get('holdings',[]),fund_rows),
+            'notice':'Historical market data is neither real-time nor investment advice. CSV attribution is user-declared and not independently verified. Synthetic demo returns are never joined to real benchmark series.'}
+
+
+def _store_benchmark(db:Session,p:Portfolio,values:list[dict],*,provider_verified:bool=False):
+    symbol=values[0]['symbol']
+    # An uploaded CSV can claim any provider name; never elevate that claim to verified.
+    source=('PROVIDER: Twelve Data API' if provider_verified else 'USER ATTESTED: '+values[0]['source'][:160])
+    db.execute(delete(MarketBar).where(MarketBar.portfolio_id==p.id,MarketBar.symbol==symbol))
+    db.add_all([MarketBar(portfolio_id=p.id,symbol=symbol,trading_day=x['date'],close=x['close'],
+                          source=source,adjustment=x['adjustment']) for x in values])
+    db.commit()
+    return {'imported':len(values),'symbol':symbol,'source':source,
+            'adjustment':values[0]['adjustment'],'first_date':values[0]['date'].isoformat(),
+            'last_date':values[-1]['date'].isoformat(),
+            'notice':'Benchmark reference series only: existing holding prices, demo history, trades and calculations have not been overwritten.'}
+
+
+@app.post('/api/v4/portfolios/{pid}/market/benchmark/csv')
+async def import_market_benchmark(pid:str,file:UploadFile=File(...),user:Account=Depends(csrf_protected),db:Session=Depends(database)):
+    p=owned(db,pid,user)
+    ensure_beta_edit_allowed()
+    if p.is_demo or p.kind!='ledger':raise HTTPException(422,'Only non-demo ledger portfolios accept real benchmark research')
+    rows=await parse_csv(file,maxbytes=110000)
+    try:values=market.validate_benchmark_rows(rows)
+    except ValueError as exc:raise HTTPException(422,str(exc)) from None
+    return _store_benchmark(db,p,values)
+
+
+@app.post('/api/v4/portfolios/{pid}/market/sync/{symbol}')
+def sync_market_benchmark(pid:str,symbol:str,user:Account=Depends(csrf_protected),db:Session=Depends(database)):
+    """Manual local/authorized provider sync, never background polling or public trial display."""
+    p=owned(db,pid,user)
+    ensure_beta_edit_allowed()
+    if p.is_demo or p.kind!='ledger':raise HTTPException(422,'Only a user-owned ledger may sync market research')
+    symbol=symbol.upper()
+    if symbol not in market.BENCHMARKS:raise HTTPException(422,'Unsupported benchmark')
+    if not market.is_provider_enabled():
+        raise HTTPException(403,'Provider disabled; configure key and appropriate data-display rights')
+    since=store.now()-__import__('datetime').timedelta(hours=1)
+    count=db.scalar(select(func.count(MarketFetchAttempt.id)).where(
+        MarketFetchAttempt.account_id==user.id,MarketFetchAttempt.occurred_at>=since)) or 0
+    if count>=2:raise HTTPException(429,'Market provider hourly quota reached; use a previously imported reference')
+    db.add(MarketFetchAttempt(account_id=user.id));db.commit()
+    try:values=market.fetch_twelve_data(symbol)
+    except ValueError as exc:raise HTTPException(502,str(exc)) from None
+    return _store_benchmark(db,p,values,provider_verified=True)
 
 @app.post('/api/v4/portfolios/{pid}/analyst')
 def analyst(pid:str,body:Question,user:Account=Depends(csrf_protected),db:Session=Depends(database)):
