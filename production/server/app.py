@@ -369,7 +369,10 @@ def portfolio_alerts(pid:str,user:Account=Depends(current_user),db:Session=Depen
 def add_portfolio_alert(pid:str,body:AlertRuleInput,user:Account=Depends(csrf_protected),db:Session=Depends(database)):
     ensure_beta_edit_allowed()
     p=owned(db,pid,user)
-    symbol=alert_rules.validate_rule(body.kind,body.threshold,body.symbol.strip().upper(),details(db,p))
+    try:
+        symbol=alert_rules.validate_rule(body.kind,body.threshold,body.symbol.strip().upper(),details(db,p))
+    except ValueError as exc:
+        raise HTTPException(422,str(exc)) from None
     count=db.scalar(select(func.count()).select_from(AlertRule).where(AlertRule.portfolio_id==p.id)) or 0
     if count>=20:raise HTTPException(422,'At most 20 alert thresholds per portfolio')
     existing=db.scalar(select(AlertRule).where(AlertRule.portfolio_id==p.id,
