@@ -30,7 +30,7 @@ def safe_to_publish(path: Path) -> bool:
         return False
     if path.name in EXCLUDE_FILES:
         return False
-    if path.name == '.env' or (path.name.startswith('.env.') and path.name != '.env.example'):
+    if path.name == '.env' or (path.name.startswith('.env.') and path.name not in ('.env.example', '.env.beta.example')):
         return False
     if path.suffix.lower() in BLOCKED_SUFFIXES or path.name.endswith(('.sqlite3-wal', '.sqlite3-shm')):
         return False

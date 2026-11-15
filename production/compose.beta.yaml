@@ -1,0 +1,66 @@
+# Optional PRIVATE beta deployment; do not run without reviewing docs/PHASE5_DEPLOYMENT.md.
+# Requires DNS for BETA_DOMAIN to point at your server, a firewall, and real secrets in .env.beta.
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: portfolioiq
+      POSTGRES_USER: portfolioiq
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in production/.env.beta}
+    volumes:
+      - beta_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portfolioiq -d portfolioiq"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks: [private]
+
+  app:
+    build:
+      context: ..
+      dockerfile: production/Dockerfile
+    restart: unless-stopped
+    environment:
+      DEPLOYMENT_MODE: production
+      COOKIE_SECURE: "true"
+      TRUSTED_HOSTS: ${BETA_DOMAIN:?Set BETA_DOMAIN},localhost,127.0.0.1
+      AUTH_RATE_LIMIT_SECRET: ${AUTH_RATE_LIMIT_SECRET:?Set AUTH_RATE_LIMIT_SECRET}
+      BETA_INVITE_CODE: ${BETA_INVITE_CODE:?Set BETA_INVITE_CODE}
+      BETA_DEMO_ONLY: "true"
+      DATABASE_URL: postgresql+psycopg://portfolioiq:${POSTGRES_PASSWORD}@postgres:5432/portfolioiq
+      # No OPENAI_API_KEY: live model access is intentionally disabled for private pilot.
+    command: ["sh", "/app/production/start_beta.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request;urllib.request.urlopen(\"http://127.0.0.1:8000/api/v4/health\")'"]
+      interval: 20s
+      timeout: 5s
+      retries: 6
+    networks: [private]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      BETA_DOMAIN: ${BETA_DOMAIN:?Set BETA_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile.beta:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [app]
+    networks: [private]
+
+networks:
+  private: {}
+volumes:
+  beta_postgres_data: {}
+  caddy_data: {}
+  caddy_config: {}

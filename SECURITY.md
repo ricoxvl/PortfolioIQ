@@ -18,3 +18,9 @@ These protections are **not** a substitute for audited production security. The 
 - Verify live market data, missing-data behavior, and LLM output quality against real integrations.
 
 To report a security issue after publishing the repository, use GitHub's private vulnerability reporting or security advisories if enabled; do not post sensitive exploitation details in public issues.
+
+## Phase 5 privacy functionality
+
+The API now provides an authenticated JSON export and CSRF/password-confirmed account deletion. Account deletion removes the user and all associated active database rows; this does **not** erase separately held host/database backups. A documented backup retention policy is necessary before real-world deployment.
+
+Production-beta startup requires `BETA_INVITE_CODE` and `BETA_DEMO_ONLY=true`. This blocks creating custom portfolios and importing real financial records during the research pilot. Credentials and API keys must never be committed; local `.env.beta` and database dumps are excluded by `.gitignore`. Live email verification, password recovery, stronger edge abuse controls, and a security audit remain open work.
