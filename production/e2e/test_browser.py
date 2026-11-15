@@ -111,6 +111,14 @@ def test_create_account_xray_scenario_analyst_and_signout():
         page.get_by_role('combobox', name='Allocation strategy').select_option('custom')
         expect(page.get_by_text('Target weights total:', exact=False)).to_be_visible()
 
+        page.get_by_role('button', name='Reports & Alerts').click()
+        expect(page.get_by_role('heading', name='Portfolio reports')).to_be_visible()
+        expect(page.get_by_role('heading', name='Portfolio threshold alerts')).to_be_visible()
+        expect(page.get_by_text('No alert thresholds saved for this portfolio.')).to_be_visible()
+        with page.expect_download() as downloaded:
+            page.get_by_role('button', name=re.compile('Download PDF report')).click()
+        assert downloaded.value.suggested_filename.endswith('.pdf')
+
         page.get_by_role('button', name='IQ Analyst').click()
         expect(page.get_by_role('heading', name='IQ Analyst', exact=True)).to_be_visible()
         expect(page.get_by_role('heading', name='SEC filing research')).to_be_visible()
