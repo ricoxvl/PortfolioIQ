@@ -18,6 +18,9 @@ def dates(n=20):
 def frankfurter(n=20):
     return json.dumps([dict(date=d.isoformat(),base='EUR',quote='USD',rate=round(1.08+i/1000,6)) for i,d in enumerate(dates(n))])
 
+def valuutta(n=20):
+    return 'date,rate\n'+'\n'.join(f'{d.isoformat()},{1.08+i/1000:.4f}' for i,d in enumerate(dates(n)))+'\n'
+
 def treasury(n=20):
     return 'Date,3 Mo,2 Yr,10 Yr,30 Yr\n'+'\n'.join(f'{d.strftime("%m/%d/%Y")},4.20,4.35,{4.5+i/100:.2f},4.90' for i,d in enumerate(dates(n)))+'\n'
 
@@ -83,6 +86,7 @@ def test_public_macro_context_source_attributed_and_cached():
     called=[]
     def mock(req):
         called.append(req.url.host)
+        if req.url.host=='valuuttakurssi.fi':return httpx.Response(200,text=valuutta())
         if req.url.host=='api.frankfurter.dev':return httpx.Response(200,text=frankfurter())
         if req.url.host=='home.treasury.gov':return httpx.Response(200,text=treasury())
         raise AssertionError('Unexpected source')
@@ -90,9 +94,10 @@ def test_public_macro_context_source_attributed_and_cached():
     with httpx.Client(transport=httpx.MockTransport(mock)) as client:
         first=f.official_reference_snapshot(client=client)
         second=f.official_reference_snapshot(client=client)
-    assert called==['api.frankfurter.dev','home.treasury.gov']
+    assert called==['valuuttakurssi.fi','home.treasury.gov']
     assert first['not_portfolio_prices']
-    assert first['fx']['via'].startswith('Frankfurter')
+    assert first['fx']['via'].startswith('Valuuttakurssi')
+    assert first['fx']['redistributor_url']==f.VALUUTTA_ABOUT
     assert first['fx']['unit']=='USD per EUR'
     assert first['treasury']['via'].startswith('U.S. Treasury')
     assert first['treasury']['unit']=='annualized yield percent'
@@ -103,6 +108,7 @@ def test_public_macro_context_source_attributed_and_cached():
 
 def test_treasury_fallback_mirror_is_explicitly_labeled():
     def mock(req):
+        if req.url.host=='valuuttakurssi.fi':return httpx.Response(200,text=valuutta())
         if req.url.host=='api.frankfurter.dev':return httpx.Response(200,text=frankfurter())
         if req.url.host=='home.treasury.gov':return httpx.Response(503)
         if req.url.host=='aidb.si':return httpx.Response(200,text=mirror())
@@ -151,3 +157,37 @@ def test_authenticated_endpoint_does_not_allow_anonymous_read(monkeypatch):
         res=client.get('/api/v4/market/official')
         assert res.status_code==200 and res.json()['not_portfolio_prices']
         assert res.headers['Cache-Control']=='no-store'
+
+
+def test_valuuttakurssi_ecb_csv_parser_strict_dates_and_values():
+    rows=f.parse_valuutta_ecb_csv(valuutta())
+    assert len(rows)==20
+    assert rows[0]['value']==1.08
+    assert rows[-1]['value']==1.099
+    assert rows[-1]['date']>rows[0]['date']
+    for bad in [
+       'date,rate\n'+'\n'.join(f'{d.isoformat()},nan' for d in dates(20)),
+       valuutta().replace('1.0800','-1.0800',1),
+       valuutta()+'\n'+valuutta().splitlines()[1],
+       valuutta().replace('date,rate','day,fx'),
+       valuutta(5),
+       valuutta().replace(dates(20)[0].isoformat(),'2035-01-01',1),
+    ]:
+        with pytest.raises(f.SourceDataError):f.parse_valuutta_ecb_csv(bad)
+
+def test_fallback_to_frankfurter_when_first_ecb_distributor_fails():
+    called=[]
+    def mock(req):
+        called.append(req.url.host)
+        if req.url.host=='valuuttakurssi.fi':return httpx.Response(503)
+        if req.url.host=='api.frankfurter.dev':return httpx.Response(200,text=frankfurter())
+        if req.url.host=='home.treasury.gov':return httpx.Response(200,text=treasury())
+        raise AssertionError(req.url)
+    f._CACHE.clear()
+    with httpx.Client(transport=httpx.MockTransport(mock)) as client:
+        snapshot=f.official_reference_snapshot(client=client)
+    assert snapshot['fx']['status']=='available'
+    assert snapshot['fx']['via'].startswith('Frankfurter')
+    assert snapshot['fx']['redistributor_url']==f.FRANKFURTER_ABOUT
+    assert called[:2]==['valuuttakurssi.fi','api.frankfurter.dev']
+    f._CACHE.clear()
