@@ -125,3 +125,34 @@ class MarketFetchAttempt(Base):
     id: Mapped[int] = mapped_column(Integer,primary_key=True,autoincrement=True)
     account_id: Mapped[str] = mapped_column(ForeignKey('accounts.id',ondelete='CASCADE'),index=True,nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),default=now,nullable=False,index=True)
+
+class IssuerVerifiedSnapshot(Base):
+    """Metadata for exact bytes fetched from a pinned fund issuer URL.
+
+    Not a redistribution license. Corresponding constituent rows are persisted only
+    in an authorized, non-demo local portfolio.
+    """
+    __tablename__='issuer_verified_snapshots'
+    portfolio_id: Mapped[str] = mapped_column(ForeignKey('portfolios.id',ondelete='CASCADE'),primary_key=True)
+    fund_symbol: Mapped[str] = mapped_column(String(16),primary_key=True)
+    issuer: Mapped[str] = mapped_column(String(100),nullable=False)
+    source_url: Mapped[str] = mapped_column(String(360),nullable=False)
+    source_sha256: Mapped[str] = mapped_column(String(64),nullable=False)
+    as_of: Mapped[datetime] = mapped_column(Date,nullable=False)
+    position_count: Mapped[int] = mapped_column(Integer,nullable=False)
+    mapped_weight_pct: Mapped[float] = mapped_column(Float,nullable=False)
+    excluded_weight_pct: Mapped[float] = mapped_column(Float,nullable=False)
+    verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),default=now,nullable=False)
+
+
+class PriceImportAudit(Base):
+    """One import fingerprint per owned ledger security; never stores credentials."""
+    __tablename__='price_import_audits'
+    portfolio_id: Mapped[str] = mapped_column(ForeignKey('portfolios.id',ondelete='CASCADE'),primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16),primary_key=True)
+    provider: Mapped[str] = mapped_column(String(100),nullable=False)
+    source_sha256: Mapped[str] = mapped_column(String(64),nullable=False)
+    adjustment: Mapped[str] = mapped_column(String(12),nullable=False)
+    observations: Mapped[int] = mapped_column(Integer,nullable=False)
+    last_date: Mapped[datetime] = mapped_column(Date,nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),default=now,nullable=False)
