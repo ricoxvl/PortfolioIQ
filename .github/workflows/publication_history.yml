@@ -1,0 +1,27 @@
+name: PortfolioIQ publication history scan
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan-reachable-history:
+    name: Reachable-history credential and protected-file scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out full Git history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Scan historical Git blobs without printing secret values
+        run: python scripts/check_publish_history.py
