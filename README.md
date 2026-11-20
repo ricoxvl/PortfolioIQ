@@ -68,7 +68,7 @@ Visit `http://127.0.0.1:8000`. See [production setup and environment notes](prod
 - The repository includes an optional Render deployment scaffold. **A live service has not been independently verified here**, and the deployment guide is marked prepared/not deployed.
 - Do **not** upload real account statements, API keys, brokerage credentials or private user-study records.
 
-**Before making this private repository public, follow the [publication readiness checklist](docs/PUBLICATION_READINESS.md).** The latest source scan is limited: a complete Git-history and binary asset inspection is still required.
+**Before making this private repository public, follow the [publication readiness checklist](docs/PUBLICATION_READINESS.md).** The current-tree scan found no listed high-confidence key patterns, and an [automated reachable-history scan](https://github.com/ricoxvl/PortfolioIQ/actions/runs/44798753488) passed across 282 historical blobs. This **does not** replace manual review of binary assets, hidden personal data, historical context, licenses, or external-service configuration.
 
 ## Documentation map
 
