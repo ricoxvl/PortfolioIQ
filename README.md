@@ -1,3 +1,92 @@
+# PortfolioIQ
+
+**An explainable investment portfolio analytics and intelligence platform**  
+*Independent product engineering and product-discovery case study*
+
+PortfolioIQ helps people investigate **asset allocation, portfolio concentration, ETF look-through, transaction-aware performance, and hypothetical risk scenarios** in one research-oriented workspace. The design emphasizes understandable calculations, visible data provenance, and honest handling of unknown or missing information. **It does not provide brokerage connectivity, trading, or investment advice.**
+
+![PortfolioIQ dashboard preview using fictional sample portfolio data](docs/dashboard_preview.png)
+
+*Repository screenshot: historical fictional-demo build. Screens and features may differ from the current release; the image is not a real customer account.*
+
+## Portfolio at a glance
+
+| Product | What it addresses |
+| --- | --- |
+| **Portfolio Overview & Ledger** | Holdings, transaction history, dated cash flows, realized/unrealized gains and income |
+| **Performance Analytics** | TWR, XIRR and performance reporting with explicit data completeness and calculation conventions |
+| **Portfolio X-Ray** | Concentration, overlapping ETF constituents, and explicit disclosure of unmapped fund exposure |
+| **Scenario Studio** | Transparent, hypothetical sector and market shocks—not price forecasts |
+| **IQ Analyst** | Calculation-grounded guided explanations; optional external LLM flows are separately gated and not presented as independently validated |
+| **Data Integrity & Source Labels** | Missing-data states, source provenance, pricing history quality, and restrictions on externally sourced data |
+
+### Technical stack
+
+**Python · FastAPI · React · TypeScript · SQLAlchemy · Alembic · SQLite / PostgreSQL · pytest · Playwright · Docker · GitHub Actions**
+
+The repository includes historical research versions, production-oriented backend/frontend code, financial calculation tests, migration checks, authenticated API tests, and browser smoke tests. Advanced modules and external integrations may be **local-only, opt-in, disabled for hosted demos, or documented as review-stage capabilities**; consult the individual phase notes before treating a feature as live.
+
+## Product research (historical, owner-reported)
+
+The project owner reports:
+
+- **40 discovery interviews** with students and self-directed investors to prioritize fragmented portfolio analysis, concentration, ETF overlap, and time-to-insight problems.
+- **50 unique usability participants** across initial and revised designs; reported objective task completion **68% → 94%**. Participants evaluated both versions; learning effects may contribute.
+- **30-participant workflow comparison** with reported average analysis times **20 → 11 minutes** (45% lower).
+- **Approximately 90 historical beta participants** across successive cohorts of 40 and 50. Reported fourth-week meaningful-action retention **14/40 (35%)** versus **26/50 (52%)**—a **17-percentage-point observed difference**, *not a randomized causal result*.
+
+**Evidence note:** These outcomes are described from the owner's study records; anonymized participant-level data has **not yet been independently checked or published**. The historical 90-person research should **not** be confused with the separate *planned* 5–8-person beta study in the engineering documents or with a currently live Render deployment. Participants may overlap across different research activities.
+
+Read the [product case study](docs/PRODUCT_CASE_STUDY.md) and [research evidence/limitations register](docs/RESEARCH_EVIDENCE.md).
+
+## Explore the implementation
+
+![PortfolioIQ transaction ledger preview with synthetic data](docs/phase2_ledger_preview.png)
+
+*Historical screenshot of the fictional ledger workflow.*
+
+**Local quick start (Python 3.11+):**
+
+~~~sh
+cd production
+python -m venv .venv
+# Activate .venv for your operating system
+pip install -r requirements.txt
+python -m uvicorn server.app:app --host 127.0.0.1 --port 8000
+~~~
+
+Visit `http://127.0.0.1:8000`. See [production setup and environment notes](production/README.md) for the optional React build, configuration and test instructions. A local demo is different from a verified public deployment.
+
+**Engineering checks:** The latest default-branch run inspected during this update—[November 15, 2026](https://github.com/ricoxvl/PortfolioIQ/actions/runs/43702961183)—reported six successful jobs, including Python analytics/security, PostgreSQL integration, React build, browser smoke tests and Docker packaging. Recheck results for every subsequent commit; the live official-feed check is advisory.
+
+## Source, safety and publication notes
+
+- All default demonstration portfolios and performance examples are **fictional**.
+- Real quotes and issuer holdings require rights, credentials and explicit opt-in paths; **no redistribution permission is implied**.
+- Hypothetical stress tests, Monte Carlo distributions and allocation previews are **not forecasts**.
+- Optional external AI does not automatically establish correctness; grounded analytical results still require validation.
+- The repository includes an optional Render deployment scaffold. **A live service has not been independently verified here**, and the deployment guide is marked prepared/not deployed.
+- Do **not** upload real account statements, API keys, brokerage credentials or private user-study records.
+
+**Before making this private repository public, follow the [publication readiness checklist](docs/PUBLICATION_READINESS.md).** The latest source scan is limited: a complete Git-history and binary asset inspection is still required.
+
+## Documentation map
+
+- [Product case study](docs/PRODUCT_CASE_STUDY.md)
+- [Research evidence and provenance](docs/RESEARCH_EVIDENCE.md)
+- [Public-release security and claim checks](docs/PUBLICATION_READINESS.md)
+- [Current app and developer instructions](production/README.md)
+- [Data-source rights and boundaries](docs/PHASE7_GENUINE_DATA_PIPELINE.md)
+- [Security posture](SECURITY.md)
+- [Project roadmap](docs/PRODUCT_ROADMAP.md)
+
+---
+
+<details>
+<summary><strong>Full historical technical README and phase-by-phase implementation notes (expand)</strong></summary>
+
+> The content below is retained as the project's engineering history; some status statements were written before later changes. For current public-facing claim boundaries, use the sections above and the linked release-readiness notes.
+
 > **Phase 11 — Portfolio Reports & Alerts (review branch):** Authenticated, source-labeled PDF/CSV exports and account-owned saved alert thresholds evaluated on demand. Financially missing observations remain unavailable, text CSV fields are protected against spreadsheet formulas, and the read-only hosted beta cannot edit rules. **No push notifications, polling, scheduled checks, live brokerage quotes, or actual trade execution.** [Phase 11 methodology](docs/PHASE11_REPORTS_ALERTS.md).
 
 > **Phase 10 — Monte Carlo & allocation planner (review branch):** New read-only Portfolio Lab models explicitly hypothetical ending-value percentiles with a seeded five-session historical block bootstrap and previews constrained equal-weight/custom allocations using frozen current holdings. Requires complete dated ledger returns or the explicitly fictional demo; unpriced snapshots produce no fabricated simulation. **No trade execution, market forecast, tax/transaction-cost model, or covariance-aware optimization.** [Phase 10 methodology and safety limits](docs/PHASE10_SIMULATION_REBALANCE.md).
@@ -210,3 +299,5 @@ Market Intelligence now separately retrieves the European Central Bank’s EUR/U
 ## v1.0 — Verified data origin, not unlicensed live quotes
 
 PortfolioIQ v1.0 adds a **local-only, opt-in** equity/ETF price connector, unadjusted historical bar auditing, original-format iShares IVV/IWM issuer-file import, and documented publisher-origin verification *only when automated access is separately permitted*. Data Integrity displays per-account source records, freshness, coverage and SHA-256 fingerprints, with correct distinctions among **source verified**, **issuer-format validated / user attested**, and **fictional**. User CSV edits invalidate older source audits. The hosted beta remains strictly **fictional and read-only** and does not acquire or redistribute vendor quotations or BlackRock issuer data. See [Phase 7 genuine data documentation](docs/PHASE7_GENUINE_DATA_PIPELINE.md).
+
+</details>
