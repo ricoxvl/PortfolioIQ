@@ -9,7 +9,7 @@
 | --- | --- | --- |
 | Default-branch CI | [Nov 15, 2026 successful run](https://github.com/ricoxvl/PortfolioIQ/actions/runs/43702961183): analytics/security + SQLite, PostgreSQL 17, React build, Playwright browser, Docker packaging and an advisory official-source check | **Verified green for that commit**; rerun after merges |
 | Current-source secret indicators | A targeted read-only scan of **114 current tracked text files** checked OpenAI/GitHub/AWS key patterns, private-key headers, hardcoded secret-like assignments and unexpected email addresses | **No high-confidence credential matches in scanned text**; 3 matches were `developer@example.test` in test fixtures |
-| Binary assets | The tracked tree includes PNG documentation screenshots | **Not audited** for embedded metadata or embedded sensitive images |
+| Current PNG screenshots | All **three current documentation PNGs** were visually inspected: they show explicitly fictional/demo financial views, with no obvious personal data; PNG chunk inspection found no tEXt/iTXt/zTXt/eXIf/tIME metadata chunks | Current visuals checked; **historic/other binary content and broader confidentiality still require review** |
 | Git history | [Automated PR run](https://github.com/ricoxvl/PortfolioIQ/actions/runs/44798753488) scanned **282 reachable historical blob objects**: 3 binary skipped, 0 oversized; no listed secret or protected-path indicators found | **Automated pattern scan passed**; manual privacy/binary/history review still required |
 | Current default-branch ignore rules | Ignores database files, environment overrides, dumps, backups and local exports | Present, but **does not remove tracked files or past commits** |
 | Prepublish checker | `scripts/prepublish_check.py` checks for selected key patterns and forbidden tracked file types and runs in CI | Present; narrow scope, not a comprehensive secret scan |
@@ -90,6 +90,7 @@ GitHub's **Settings → General → Danger Zone → Change repository visibility
 - Scanned 114 tracked text files for specific common high-confidence credential patterns. The only email flags were three `developer@example.test` fixture occurrences in `production/server/tests/test_phase9.py`.
 - Wrote a candidate concise README introduction and separate evidence-aware product case study.
 - Added an automated full-reachable-history indicator scan: **282 blobs, 3 binary skipped, 0 oversized, no listed findings** ([successful CI run](https://github.com/ricoxvl/PortfolioIQ/actions/runs/44798753488)). This is not an independent manual inspection of every file or a complete secrets audit.
-- **Did not** manually inspect binary assets or all historical content, run the full code locally, validate private participant records, verify a Render service, modify financial functionality or change repository visibility.
+- Inspected all three **current** screenshot PNGs visually and checked their chunk structure for embedded text/EXIF metadata; no apparent non-demo account content or embedded metadata chunks were found.
+- **Did not** audit every historical binary or manually review all historical content, run the full code locally, validate private participant records, verify a Render service, modify financial functionality or change repository visibility.
 
 This is a **partial audit with explicit remaining release blockers**. It is not a claim that the repository is free of all sensitive content or suitable for production financial use.
